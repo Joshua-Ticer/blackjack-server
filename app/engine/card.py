@@ -1,0 +1,41 @@
+"""Card representation. Pure data, no I/O.
+
+TODO:
+- Suit enum (clubs, diamonds, hearts, spades)
+- Rank enum (two..ten, jack, queen, king, ace)
+- Card (frozen dataclass or NamedTuple) combining Suit + Rank
+- A `blackjack_value` or similar helper the Hand module can use for soft/hard totals
+"""
+
+from enum import Enum
+from dataclasses import dataclass
+
+class Suit(Enum):
+    HEARTS = 'H'
+    CLUBS = 'C'
+    DIAMONDS = 'D'
+    SPADES = 'S'
+
+class Rank(Enum):
+    TWO = '2'
+    THREE = '3'
+    FOUR = '4'
+    FIVE = '5'
+    SIX = '6'
+    SEVEN = '7'
+    EIGHT = '8'
+    NINE = '9'
+    TEN = 10
+    JACK = 10
+    QUEEN = 10
+    KING = 10
+    ACE = 11
+
+@dataclass(frozen=True)
+class Card:
+    suit: Suit
+    rank: Rank
+
+    @property
+    def value(self) -> int:
+        return self.rank.value

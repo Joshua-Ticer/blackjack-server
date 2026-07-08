@@ -1,0 +1,53 @@
+[project]
+name = "blackjack-server"
+version = "0.1.0"
+description = "Multiplayer blackjack game server: real-time state machines, single-writer concurrency, and a ledger-backed persistence model."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlmodel>=0.0.22",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "redis>=5.2",
+    "passlib[argon2]>=1.7",
+    "pyjwt>=2.10",
+    "structlog>=24.4",
+    "websockets>=13.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "mypy>=1.13",
+    "ruff>=0.7",
+    "hypothesis>=6.115",
+    "locust>=2.32",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
