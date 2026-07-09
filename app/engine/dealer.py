@@ -3,3 +3,8 @@
 TODO:
 - play_dealer_hand(hand: Hand, shoe: list[Card]) -> Hand
 """
+
+def play_dealer_hand(hand: Hand, shoe: Shoe, rules: TableRules) -> Hand:
+    while hand.total < 17 or (hand.total == 17 and hand.is_soft and rules.dealer_hits_soft_17):
+        hand.add(shoe.draw())
+    return hand
