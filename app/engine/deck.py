@@ -6,7 +6,11 @@ TODO:
 - cut card / penetration handling (when to trigger a reshuffle)
 """
 
+
 import random
+
+from .card import Card, Rank, Suit
+
 
 class ShoeEmptyError(Exception):
     pass
@@ -14,13 +18,13 @@ class ShoeEmptyError(Exception):
 class Shoe:
     def __init__(self, num_decks: int = 6, seed: int | None = None):
         self._rng = random.Random(seed)
-        self._cards = List[Card] = self._build_shoe(num_decks)
+        self._cards: list[Card] = self._build_shoe(num_decks)
         self._rng.shuffle(self._cards)
-    
-    def _build_shoe(self, num_decks) -> list[Card]:
+
+    def _build_shoe(self, num_decks: int) -> list[Card]:
         return [Card(s, r) for _ in range(num_decks) for s in Suit for r in Rank]
-    
-     def draw(self) -> Card:
+
+    def draw(self) -> Card:
         if not self._cards:
             raise ShoeEmptyError()
         return self._cards.pop()

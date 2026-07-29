@@ -9,6 +9,11 @@ TODO:
 - is_blackjack() -> bool  (natural 21 on the first two cards only)
 """
 
+from __future__ import annotations
+
+from .card import Card, Rank
+
+
 class Hand:
     def __init__(self, cards: list[Card] | None = None):
         self.cards: list[Card] = cards or []
