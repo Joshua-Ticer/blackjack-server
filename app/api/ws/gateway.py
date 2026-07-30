@@ -9,6 +9,19 @@ TODO:
 - on disconnect: deregister; do not mutate table state directly from this handler
 """
 
-from fastapi import APIRouter
-
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 router = APIRouter()
+
+app = FastAPI()
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+
+            await websocket.send_text(f"You said {data}")
+    except WebSocketDisconnect:
+        print("Client disconnected")
