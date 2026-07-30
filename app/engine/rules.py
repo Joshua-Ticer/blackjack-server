@@ -34,6 +34,10 @@ class TableRules:
     resplit_aces_allowed: bool = False
     max_splits: int = 3
     late_surrender_allowed: bool = True
+    min_bet: int = 5
+    max_bet: int = 500
+    betting_window_seconds: int = 15
+    turn_timeout_seconds: int = 30
 
 def legal_actions(
     hand: Hand,
