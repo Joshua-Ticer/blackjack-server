@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from fastapi import WebSocket
 from app.api import deps
-from app.api.ws.schemas import BettingOpen, ErrorMsg, PlaceBet, PlayerAction, PlayerTurn, Pong, SeatView, ServerEvent, StateDelta, TableStateMsg
+from app.api.ws.schemas import BettingOpen, ErrorMsg, PlaceBet, PlayerAction, PlayerTurn, Pong, RoundResultMsg, SeatView, ServerEvent, SettlementItem, StateDelta, TableStateMsg
 from app.engine.hand import Hand
 from app.engine.deck import Shoe
 from app.engine.round import InvalidBetError, Round, RoundError, Seat
@@ -149,6 +149,8 @@ class TableActor:
         seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in self._seats.items() if bet > 0]
         self.round = Round(Shoe(seed=self.seed), self.rules, seats)
         self.round.deal_initial()
+        self.sm.fire(TableEvent.START_DEAL)
+        self.sm.fire(TableEvent.DEAL_COMPLETE)
 
         self._version += 1
         await self._broadcast(self._build_snapshot())
@@ -178,6 +180,34 @@ class TableActor:
             ), seat.player_id)
             self._schedule_turn_timeout(seat.player_id, self.rules.turn_timeout_seconds)
             return
+
+    async def _run_dealer_and_settle(self):
+        if self.round is None:
+            raise RoundError("no round in progress")
+
+        self.sm.fire(TableEvent.ALL_PLAYERS_DONE)
+        self.round.advance_to_dealer_turn()
+        self.sm.fire(TableEvent.DEALER_DONE)
+        results = self.round.settle()
+
+        items = []
+        for r in results:
+            user = deps.get_user_by_id(r.player_id)
+            if user is not None:
+                user.chip_balance += r.net
+            items.append(SettlementItem(
+                player_id=r.player_id,
+                hand_index=r.hand_index,
+                outcome=r.outcome.value,
+                bet=r.bet,
+                payout=r.payout,
+                net=r.net,
+                balance_after=user.chip_balance if user is not None else 0,
+            ))
+
+        self._version += 1
+        await self._broadcast(RoundResultMsg(results=items, state_version=self._version))
+        await self._reset_for_next_round()
 
     async def _reset_for_next_round(self):
         self.round = None
