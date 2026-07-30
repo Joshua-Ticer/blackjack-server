@@ -179,8 +179,27 @@ class TableActor:
             self._schedule_turn_timeout(seat.player_id, self.rules.turn_timeout_seconds)
             return
 
-    async def _run_dealer_and_settle(self):
-        pass  # TODO 3f: advance_to_dealer_turn(), settle(), broadcast round_result, reset for next round
+    async def _reset_for_next_round(self):
+        self.round = None
+        self._seen_actions.clear()
+        for pid in self._seats:
+            self._seats[pid] = 0
+
+        self.sm.fire(TableEvent.SETTLED)  # -> IDLE
+        self._version += 1
+
+        if self._seats:
+            self.sm.fire(TableEvent.PLAYERS_SEATED)  # -> BETTING_OPEN again
+            self._schedule_betting_timeout(self.rules.betting_window_seconds)
+            await self._broadcast(BettingOpen(
+                deadline=datetime.now() + timedelta(seconds=self.rules.betting_window_seconds),
+                min_bet=self.rules.min_bet,
+                max_bet=self.rules.max_bet,
+                state_version=self._version,
+            ))
+        else:
+            await self._broadcast(self._build_snapshot())
+
 
     def _schedule_betting_timeout(self, deadline_seconds):
         loop = asyncio.get_running_loop()
