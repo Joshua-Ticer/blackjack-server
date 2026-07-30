@@ -44,8 +44,3 @@ def get_table(table_id: str) -> Table:
         if table.id == table_id:
             return table
     raise HTTPException(status_code=404, detail="Table not found")
-
-
-# TODO: GET /tables         -- list open tables
-# TODO: POST /tables        -- admin-only create
-# TODO: GET /tables/{id}    -- table detail (seats, min/max bet, status)
