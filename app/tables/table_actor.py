@@ -17,7 +17,7 @@ from app.api import deps
 from app.api.ws.schemas import BettingOpen, ErrorMsg, PlaceBet, PlayerAction, PlayerTurn, Pong, RoundResultMsg, SeatView, ServerEvent, SettlementItem, StateDelta, TableStateMsg
 from app.engine.hand import Hand
 from app.engine.deck import Shoe
-from app.engine.round import InvalidBetError, Round, RoundError, Seat
+from app.engine.round import InvalidBetError, Round, RoundError, Seat, SeatNotFoundError
 from app.engine.rules import Action, TableRules
 from app.engine.state_machine import StateMachine, TableEvent, TableState
 
@@ -44,10 +44,10 @@ class TableActor:
     async def handle_join(self, ws: WebSocket, player_id):
         self.connections[ws] = player_id
         snapshot = self._build_snapshot()
-        await ws.send_json(snapshot.model_dump())
+        await ws.send_json(snapshot.model_dump(mode="json"))
 
     async def handle_ping(self, ws: WebSocket):
-        await ws.send_json(Pong().model_dump())
+        await ws.send_json(Pong().model_dump(mode="json"))
 
     def _build_snapshot(self) -> TableStateMsg:
         lobby_state = self.sm.state.name.lower()
@@ -83,10 +83,15 @@ class TableActor:
                     await self._close_betting_and_deal()
                 elif act == "action":
                     await self._handle_action(player_id, event)
+                elif act == "leave_table":
+                    await self._handle_leave(player_id)
             except RoundError as e:
                 await self._send_error(player_id, str(e))
 
     async def _handle_sit(self, player_id: str):
+        if len(self._seats) >= self.rules.max_seats:
+            raise RoundError("Table is full!")
+        
         self._seats[player_id] = 0
         if len(self._seats) == 1 and self.sm.state == TableState.IDLE:
             self.sm.fire(TableEvent.PLAYERS_SEATED)
@@ -140,6 +145,22 @@ class TableActor:
             await self._run_dealer_and_settle()
         else:
             await self._advance_turns()
+
+    async def _handle_leave(self, player_id: str):
+        if self.round is not None:
+            try:
+                seat = self.round._get_seat(player_id)
+            except SeatNotFoundError:
+                seat = None
+
+            if seat is not None and not seat.all_hands_done():
+                raise RoundError("cannot leave mid-round")
+
+        self._seats.pop(player_id, None)
+        self._version += 1
+        await self._broadcast(self._build_snapshot())
+
+
 
     async def _close_betting_and_deal(self):
         if self.sm.state != TableState.BETTING_OPEN:
@@ -251,23 +272,23 @@ class TableActor:
     async def _send_error(self, player_id: str, detail: str):
         for ws, pid in self.connections.items():
             if pid == player_id:
-                await ws.send_json(ErrorMsg(detail=detail).model_dump())
+                await ws.send_json(ErrorMsg(detail=detail).model_dump(mode="json"))
                 return
 
     async def _broadcast(self, table_state: ServerEvent):
         dead_ws = []
         for ws in self.connections:
             try:
-                await ws.send_json(table_state.model_dump())
+                await ws.send_json(table_state.model_dump(mode="json"))
             except Exception:
                 dead_ws.append(ws)
 
         for ws in dead_ws:
             self.unregister(ws)
 
-    async def _broadcast_to_player(self, table_state: ServerEvent, player_id):    
+    async def _broadcast_to_player(self, table_state: ServerEvent, player_id):
         for ws, pid in self.connections.items():
             if pid == player_id:
-                await ws.send_json(table_state.model_dump())
+                await ws.send_json(table_state.model_dump(mode="json"))
                 return
 

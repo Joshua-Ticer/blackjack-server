@@ -14,14 +14,12 @@ class Table(BaseModel):
     name: str
     min_bet: int
     max_bet: int
-    max_seats: int
     status: str = "open"
 
 class TableCreate(BaseModel):
     name: str
     min_bet: int
     max_bet: int
-    max_seats: int
 
 
 _tables: list[Table] = []
@@ -38,9 +36,15 @@ def create_table(body: TableCreate, user: User = Depends(get_current_user)) -> T
     _tables.append(table)
     return table
 
-@router.get("/{table_id}", response_model=Table)
-def get_table(table_id: str) -> Table:
+def get_table_by_id(table_id: str) -> Table | None:
     for table in _tables:
         if table.id == table_id:
             return table
-    raise HTTPException(status_code=404, detail="Table not found")
+    return None
+
+@router.get("/{table_id}", response_model=Table)
+def get_table(table_id: str) -> Table:
+    table = get_table_by_id(table_id)
+    if table is None:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return table

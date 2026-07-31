@@ -11,6 +11,25 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.api.routes import tables as tables_routes
 from app.main import app
+from app.tables.table_manager import table_manager
+
+
+def _clear_table_manager():
+    """Cancel every live TableActor task and drop it from the registry.
+
+    Actors created during a WS test may be running on a different event loop
+    (e.g. starlette's TestClient drives its own loop in a background thread),
+    so `task.cancel()` must be scheduled via that task's own loop rather than
+    called directly from whatever loop this fixture happens to run on.
+    """
+    for task in list(table_manager._tasks.values()):
+        try:
+            task.get_loop().call_soon_threadsafe(task.cancel)
+        except RuntimeError:
+            # loop already closed -- nothing left to schedule cancellation on
+            task.cancel()
+    table_manager._actors.clear()
+    table_manager._tasks.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -19,10 +38,12 @@ def _reset_in_memory_stores():
     deps._users_by_id.clear()
     deps._users_by_username.clear()
     tables_routes._tables.clear()
+    _clear_table_manager()
     yield
     deps._users_by_id.clear()
     deps._users_by_username.clear()
     tables_routes._tables.clear()
+    _clear_table_manager()
 
 
 @pytest.fixture

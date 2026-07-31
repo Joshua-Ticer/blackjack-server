@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.api.routes import auth, history, tables, users
+from app.api.ws import gateway
 
 
 def create_app() -> FastAPI:
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     app.include_router(users.router)
     app.include_router(tables.router)
     app.include_router(history.router)
+    app.include_router(gateway.router)
 
     # Phase 2 uses an in-memory store (see api/deps.py) -- no DB startup hook yet.
     # TODO (Phase 4): startup hook -- run Base.metadata.create_all() against the async
