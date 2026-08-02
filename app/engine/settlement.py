@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from .hand import Hand
+from .rules import TableRules
+
 class Outcome(Enum):
     WIN = "win"
     LOSS = "loss"

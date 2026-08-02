@@ -25,11 +25,19 @@ class Rank(Enum):
     SEVEN = '7'
     EIGHT = '8'
     NINE = '9'
-    TEN = 10
-    JACK = 10
-    QUEEN = 10
-    KING = 10
-    ACE = 11
+    TEN = '10'
+    JACK = 'J'
+    QUEEN = 'Q'
+    KING = 'K'
+    ACE = 'A'
+
+# Blackjack point value per rank. Kept separate from Rank's own .value
+# (which is a display label) so face cards don't collide as Enum aliases.
+RANK_VALUES: dict[Rank, int] = {
+    Rank.TWO: 2, Rank.THREE: 3, Rank.FOUR: 4, Rank.FIVE: 5, Rank.SIX: 6,
+    Rank.SEVEN: 7, Rank.EIGHT: 8, Rank.NINE: 9, Rank.TEN: 10,
+    Rank.JACK: 10, Rank.QUEEN: 10, Rank.KING: 10, Rank.ACE: 11,
+}
 
 @dataclass(frozen=True)
 class Card:
@@ -38,4 +46,7 @@ class Card:
 
     @property
     def value(self) -> int:
-        return self.rank.value
+        return RANK_VALUES[self.rank]
+
+    def __str__(self) -> str:
+        return f"{self.rank.value}{self.suit.value}"

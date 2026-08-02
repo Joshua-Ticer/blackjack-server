@@ -14,6 +14,8 @@ TODO:
 from dataclasses import dataclass
 from enum import Enum
 
+from .hand import Hand
+
 class Action(Enum):
     HIT = 'hit'
     STAND = 'stand'
@@ -30,7 +32,17 @@ class TableRules:
     max_splits: int = 3
     late_surrender_allowed: bool = True
 
-def legal_actions(hand: Hand, table_rules: TableRules) -> set[Action]:
+def legal_actions(
+    hand: Hand,
+    rules: TableRules,
+    is_first_action: bool,
+    split_count: int,
+    is_split_aces_hand: bool,
+) -> set[Action]:
+    if is_split_aces_hand:
+        # split aces conventionally get exactly one card, no further action
+        return set()
+
     if hand.is_bust or hand.is_blackjack:
         return set()
 
@@ -38,13 +50,9 @@ def legal_actions(hand: Hand, table_rules: TableRules) -> set[Action]:
 
     if is_first_action:
         actions.add(Action.DOUBLE)
-        if late_surrender_allowed and is_first_action and split_count == 0:
+        if rules.late_surrender_allowed and split_count == 0:
             actions.add(Action.SURRENDER)
-        if hand.can_split() and split_count < rules.max_splits:
+        if hand.can_split and split_count < rules.max_splits:
             actions.add(Action.SPLIT)
-
-    if is_split_aces_hand:
-        # split aces conventionally get exactly one card, no further action
-        return set()
 
     return actions
