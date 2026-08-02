@@ -1,9 +1,19 @@
-"""Append-only LedgerEntry ORM model -- the audit trail for every chip movement.
+from datetime import datetime
+from uuid import UUID, uuid4
 
-Design principle (state it in the README too): balances are never mutated in-place by
-game logic alone -- every chip movement is a LedgerEntry, and a user's chip_balance is
-either a cached column reconciled from the ledger or fully derived from summing entries.
+from sqlalchemy import ForeignKey, func
+from sqlalchemy.orm import Mapped, mapped_column
 
-TODO fields: id, user_id, round_id (nullable), amount, type (bet/payout/buy-in/
-adjustment), balance_after, created_at
-"""
+from app.db.base import Base
+
+
+class LedgerEntry(Base):
+    __tablename__ = "ledger_entries"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    round_id: Mapped[UUID | None] = mapped_column(ForeignKey("rounds.id"), default=None)
+    amount: Mapped[int] = mapped_column()
+    type: Mapped[str] = mapped_column()
+    balance_after: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)

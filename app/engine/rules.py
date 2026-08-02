@@ -39,6 +39,7 @@ class TableRules:
     max_seats: int = 6
     betting_window_seconds: int = 15
     turn_timeout_seconds: int = 30
+    penetration: float = 0.75
 
 def legal_actions(
     hand: Hand,

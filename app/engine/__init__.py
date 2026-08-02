@@ -5,7 +5,7 @@ deterministic given a seed and testable with zero I/O -- see docs/roadmap.md Pha
 """
 
 from .card import Card, Rank, Suit
-from .deck import Shoe, ShoeEmptyError
+from .deck import Shoe
 from .hand import Hand
 from .rules import Action, TableRules, legal_actions
 from .dealer import play_dealer_hand
@@ -31,7 +31,6 @@ __all__ = [
     "Rank",
     "Suit",
     "Shoe",
-    "ShoeEmptyError",
     "Hand",
     "Action",
     "TableRules",

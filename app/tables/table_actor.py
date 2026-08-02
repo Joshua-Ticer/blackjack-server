@@ -26,6 +26,7 @@ class TableActor:
     def __init__(self, table_id, rules, seed=None):
         self.sm = StateMachine()
         self.round: Round | None = None
+        self.shoe: Shoe | None = None
         self.queue: asyncio.Queue = asyncio.Queue()
         self.connections: Dict[WebSocket, str | None] = {} # ws -> player id
         self._seats: Dict[str, int] = {} # player id -> bet amount
@@ -162,13 +163,18 @@ class TableActor:
 
 
 
+    def _ensure_shoe(self) -> None:
+        if self.shoe is None or self.shoe.needs_shuffle(self.rules.penetration):
+            self.shoe = Shoe(seed=self.seed)
+
     async def _close_betting_and_deal(self):
         if self.sm.state != TableState.BETTING_OPEN:
             return  # already closed by the other trigger (timer vs. all-bets-in race)
 
         self.sm.fire(TableEvent.BETS_LOCKED)
+        self._ensure_shoe()
         seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in self._seats.items() if bet > 0]
-        self.round = Round(Shoe(seed=self.seed), self.rules, seats)
+        self.round = Round(self.shoe, self.rules, seats)
         self.round.deal_initial()
         self.sm.fire(TableEvent.START_DEAL)
         self.sm.fire(TableEvent.DEAL_COMPLETE)
