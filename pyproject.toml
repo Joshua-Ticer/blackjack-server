@@ -17,6 +17,7 @@ dependencies = [
     "pyjwt>=2.10",
     "structlog>=24.4",
     "websockets>=13.1",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]

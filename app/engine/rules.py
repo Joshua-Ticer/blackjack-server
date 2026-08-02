@@ -11,10 +11,13 @@ docs/adr/):
 TODO:
 - legal_actions(hand, table_rules) -> set[Action]
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 
 from .hand import Hand
+
 
 class Action(Enum):
     HIT = 'hit'
@@ -31,6 +34,11 @@ class TableRules:
     resplit_aces_allowed: bool = False
     max_splits: int = 3
     late_surrender_allowed: bool = True
+    min_bet: int = 5
+    max_bet: int = 500
+    max_seats: int = 6
+    betting_window_seconds: int = 15
+    turn_timeout_seconds: int = 30
 
 def legal_actions(
     hand: Hand,
@@ -39,11 +47,11 @@ def legal_actions(
     split_count: int,
     is_split_aces_hand: bool,
 ) -> set[Action]:
-    if is_split_aces_hand:
-        # split aces conventionally get exactly one card, no further action
+    if hand.is_bust or hand.is_blackjack:
         return set()
 
-    if hand.is_bust or hand.is_blackjack:
+    if is_split_aces_hand:
+        # split aces conventionally get exactly one card, no further action
         return set()
 
     actions = {Action.HIT, Action.STAND}

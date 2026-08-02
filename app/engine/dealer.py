@@ -4,8 +4,8 @@ TODO:
 - play_dealer_hand(hand: Hand, shoe: list[Card]) -> Hand
 """
 
-from .hand import Hand
 from .deck import Shoe
+from .hand import Hand
 from .rules import TableRules
 
 

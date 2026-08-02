@@ -31,12 +31,23 @@ class Rank(Enum):
     KING = 'K'
     ACE = 'A'
 
-# Blackjack point value per rank. Kept separate from Rank's own .value
-# (which is a display label) so face cards don't collide as Enum aliases.
+# Blackjack values, kept separate from Rank's own values so JACK/QUEEN/KING
+# stay distinct enum members (equal Enum values collapse into aliases and
+# vanish from `for r in Rank` iteration, which silently shrinks the shoe).
 RANK_VALUES: dict[Rank, int] = {
-    Rank.TWO: 2, Rank.THREE: 3, Rank.FOUR: 4, Rank.FIVE: 5, Rank.SIX: 6,
-    Rank.SEVEN: 7, Rank.EIGHT: 8, Rank.NINE: 9, Rank.TEN: 10,
-    Rank.JACK: 10, Rank.QUEEN: 10, Rank.KING: 10, Rank.ACE: 11,
+    Rank.TWO: 2,
+    Rank.THREE: 3,
+    Rank.FOUR: 4,
+    Rank.FIVE: 5,
+    Rank.SIX: 6,
+    Rank.SEVEN: 7,
+    Rank.EIGHT: 8,
+    Rank.NINE: 9,
+    Rank.TEN: 10,
+    Rank.JACK: 10,
+    Rank.QUEEN: 10,
+    Rank.KING: 10,
+    Rank.ACE: 11,
 }
 
 @dataclass(frozen=True)
