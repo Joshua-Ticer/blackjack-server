@@ -42,13 +42,6 @@ class PaginatedLedger(BaseModel):
     offset: int
 
 
-# Stub data -- Phase 4 replaces this with real per-user queries against
-# Postgres (rounds/ledger tables), scoped by `user.id`.
-_stub_rounds: list[RoundHistoryItem] = [
-    RoundHistoryItem(round_id="r1", table_id="t1", outcome="win", net=20),
-    RoundHistoryItem(round_id="r2", table_id="t1", outcome="loss", net=-10),
-]
-
 
 @router.get("/rounds", response_model=PaginatedRounds)
 async def get_round_history(
@@ -82,7 +75,7 @@ async def get_round_history(
         total = await db.scalar(
             select(func.count()).select_from(Participation).where(Participation.user_id == user.id)
         )
-        return PaginatedRounds(items=items, total=total, limit=limit, offset=offset)
+        return PaginatedRounds(items=items, total=total or 0, limit=limit, offset=offset)
 
 
 @router.get("/ledger", response_model=PaginatedLedger)
@@ -104,4 +97,4 @@ async def get_ledger_history(
     total = await db.scalar(
         select(func.count()).select_from(LedgerEntry).where(LedgerEntry.user_id == user.id)
     )
-    return PaginatedLedger(items=items, total=total, limit=limit, offset=offset)
+    return PaginatedLedger(items=items, total=total or 0, limit=limit, offset=offset)
