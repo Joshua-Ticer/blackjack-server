@@ -4,47 +4,46 @@ TODO:
 - get_current_user(token: str = Depends(...)) -> User   (verifies JWT, loads user)
 """
 
-from uuid import uuid4
+from typing import Annotated
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
-
+from sqlalchemy import select
 from app.config import settings
+from app.db.session import get_session
+from app.models.user import User
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# standin for phase 2
-class User(BaseModel):
-    id: str
-    username: str
-    hashed_password: str
-    chip_balance: int = 10000
-    is_admin: bool = False
+DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
 
-_users_by_id: dict[str, User] = {}
-_users_by_username: dict[str, User] = {}
-
-def create_user(username: str, hashed_password: str) -> User:
-    user = User(id=str(uuid4()), username=username, hashed_password=hashed_password)
-    _users_by_id[user.id] = user
-    _users_by_username[username] = user
+async def create_user(db: DatabaseSession, username: str, hashed_password: str) -> User:
+    user = User(username=username, hashed_password=hashed_password)
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
-def get_user_by_username(username: str) -> User | None:
-    return _users_by_username.get(username)
+async def get_user_by_username(db: DatabaseSession, username: str) -> User | None:
+    result = await db.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
 
-def get_user_by_id(user_id: str) -> User | None:
-    return _users_by_id.get(user_id)
+async def get_user_by_id(db: DatabaseSession, user_id: str) -> User | None:
+    return await db.get(User, user_id)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+async def get_current_user(db: DatabaseSession, token: str = Depends(oauth2_scheme)) -> User:
     try:
-        return decode_access_token(token)
+        user_id = decode_access_token(token)
     except ValueError:
         raise HTTPException(401, "Could not validate credentials")
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(401, "Could not validate credentials")
+    return user
 
-def decode_access_token(token: str) -> User:
+def decode_access_token(token: str) -> str:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
         user_id = payload.get("sub")
@@ -54,8 +53,4 @@ def decode_access_token(token: str) -> User:
     if not isinstance(user_id, str):
         raise ValueError("Could not validate credentials")
     
-    user = _users_by_id.get(user_id)
-    if user is None:
-        raise ValueError("Could not validate credentials")
-    
-    return user
+    return user_id

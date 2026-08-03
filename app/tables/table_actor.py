@@ -8,18 +8,22 @@ TODO:
 - snapshot() / restore()  -- periodic Redis-backed persistence for crash recovery (Phase 5)
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import WebSocket
 from app.api import deps
 from app.api.ws.schemas import BettingOpen, ErrorMsg, PlaceBet, PlayerAction, PlayerTurn, Pong, RoundResultMsg, SeatView, ServerEvent, SettlementItem, StateDelta, TableStateMsg
+from app.db.session import SessionLocal
 from app.engine.hand import Hand
 from app.engine.deck import Shoe
 from app.engine.round import InvalidBetError, Round, RoundError, Seat, SeatNotFoundError
 from app.engine.rules import Action, TableRules
 from app.engine.state_machine import StateMachine, TableEvent, TableState
+from app.models.round import GameSession, Participation
+from app.models.round import Round as RoundModel
+from app.services import settlement_service
 
 
 class TableActor:
@@ -27,6 +31,8 @@ class TableActor:
         self.sm = StateMachine()
         self.round: Round | None = None
         self.shoe: Shoe | None = None
+        self.session_id: UUID | None = None
+        self.round_id: UUID | None = None
         self.queue: asyncio.Queue = asyncio.Queue()
         self.connections: Dict[WebSocket, str | None] = {} # ws -> player id
         self._seats: Dict[str, int] = {} # player id -> bet amount
@@ -79,7 +85,7 @@ class TableActor:
                 if act == "sit":
                     await self._handle_sit(player_id)
                 elif act == "place_bet":
-                    self._handle_place_bet(player_id, event)
+                    await self._handle_place_bet(player_id, event)
                 elif act == "close_betting":
                     await self._close_betting_and_deal()
                 elif act == "action":
@@ -105,7 +111,7 @@ class TableActor:
                 state_version=self._version,
             ))
 
-    def _handle_place_bet(self, player_id: str, event: PlaceBet):
+    async def _handle_place_bet(self, player_id: str, event: PlaceBet):
         if event.action_id in self._seen_actions:
             return
         self._seen_actions.add(event.action_id)
@@ -113,7 +119,8 @@ class TableActor:
         if not (self.rules.min_bet <= event.amount <= self.rules.max_bet):
             raise InvalidBetError(f"bet must be in between {self.rules.min_bet} and {self.rules.max_bet}")
 
-        user = deps.get_user_by_id(player_id)
+        async with SessionLocal() as session:
+            user = await deps.get_user_by_id(session, player_id)
         if user is None:
             raise RoundError(f"unknown player {player_id}")
         if user.chip_balance < event.amount:
@@ -163,19 +170,50 @@ class TableActor:
 
 
 
-    def _ensure_shoe(self) -> None:
-        if self.shoe is None or self.shoe.needs_shuffle(self.rules.penetration):
-            self.shoe = Shoe(seed=self.seed)
+    async def _ensure_shoe(self) -> None:
+        if self.shoe is not None and not self.shoe.needs_shuffle(self.rules.penetration):
+            return
+
+        async with SessionLocal() as session:
+            async with session.begin():
+                if self.session_id is not None:
+                    old_session = await session.get(GameSession, self.session_id)
+                    if old_session is not None:
+                        old_session.ended_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+                new_session = GameSession(table_id=self.table_id, deck_seed=self.seed)
+                session.add(new_session)
+                await session.flush()
+                self.session_id = new_session.id
+
+        self.shoe = Shoe(seed=self.seed)
 
     async def _close_betting_and_deal(self):
         if self.sm.state != TableState.BETTING_OPEN:
             return  # already closed by the other trigger (timer vs. all-bets-in race)
 
         self.sm.fire(TableEvent.BETS_LOCKED)
-        self._ensure_shoe()
-        seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in self._seats.items() if bet > 0]
+        await self._ensure_shoe()
+        seated = [(pid, bet) for pid, bet in self._seats.items() if bet > 0]
+        seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in seated]
         self.round = Round(self.shoe, self.rules, seats)
         self.round.deal_initial()
+
+        async with SessionLocal() as session:
+            async with session.begin():
+                round_row = RoundModel(table_id=self.table_id, session_id=self.session_id)
+                session.add(round_row)
+                await session.flush()
+                self.round_id = round_row.id
+
+                for seat_number, (pid, bet) in enumerate(seated):
+                    session.add(Participation(
+                        round_id=self.round_id,
+                        user_id=pid,
+                        seat_number=seat_number,
+                        bet_amount=bet,
+                    ))
+
         self.sm.fire(TableEvent.START_DEAL)
         self.sm.fire(TableEvent.DEAL_COMPLETE)
 
@@ -217,20 +255,20 @@ class TableActor:
         self.sm.fire(TableEvent.DEALER_DONE)
         results = self.round.settle()
 
-        items = []
-        for r in results:
-            user = deps.get_user_by_id(r.player_id)
-            if user is not None:
-                user.chip_balance += r.net
-            items.append(SettlementItem(
+        balances = await settlement_service.settle_round(self.round_id, results, self.round.seats)
+
+        items = [
+            SettlementItem(
                 player_id=r.player_id,
                 hand_index=r.hand_index,
                 outcome=r.outcome.value,
                 bet=r.bet,
                 payout=r.payout,
                 net=r.net,
-                balance_after=user.chip_balance if user is not None else 0,
-            ))
+                balance_after=balances.get(r.player_id, 0),
+            )
+            for r in results
+        ]
 
         self._version += 1
         await self._broadcast(RoundResultMsg(results=items, state_version=self._version))
@@ -238,6 +276,7 @@ class TableActor:
 
     async def _reset_for_next_round(self):
         self.round = None
+        self.round_id = None
         self._seen_actions.clear()
         for pid in self._seats:
             self._seats[pid] = 0

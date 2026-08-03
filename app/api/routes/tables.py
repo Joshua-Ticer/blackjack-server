@@ -1,16 +1,23 @@
 """Table listing / admin-only creation."""
 
-from uuid import uuid4
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import User, get_current_user
+from app.db.session import get_session
+from app.models.table import Table
 
 router = APIRouter(prefix="/tables", tags=["tables"])
+DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
 
-class Table(BaseModel):
-    id: str
+class TableResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     name: str
     min_bet: int
     max_bet: int
@@ -20,31 +27,30 @@ class TableCreate(BaseModel):
     name: str
     min_bet: int
     max_bet: int
+    max_seats: int = 6
 
 
-_tables: list[Table] = []
+@router.get("", response_model=list[TableResponse])
+async def list_tables(db: DatabaseSession) -> list[Table]:
+    result = await db.execute(select(Table))
+    return list(result.scalars().all())
 
-@router.get("", response_model=list[Table])
-def list_tables() -> list[Table]:
-    return _tables
-
-@router.post("", response_model=Table)
-def create_table(body: TableCreate, user: User = Depends(get_current_user)) -> Table:
+@router.post("", response_model=TableResponse)
+async def create_table(body: TableCreate, db: DatabaseSession, user: User = Depends(get_current_user)) -> Table:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
-    table = Table(id=str(uuid4()), **body.model_dump())
-    _tables.append(table)
+    table = Table(**body.model_dump())
+    db.add(table)
+    await db.commit()
+    await db.refresh(table)
     return table
 
-def get_table_by_id(table_id: str) -> Table | None:
-    for table in _tables:
-        if table.id == table_id:
-            return table
-    return None
+async def get_table_by_id(db: AsyncSession, table_id: str) -> Table | None:
+    return await db.get(Table, table_id)
 
-@router.get("/{table_id}", response_model=Table)
-def get_table(table_id: str) -> Table:
-    table = get_table_by_id(table_id)
+@router.get("/{table_id}", response_model=TableResponse)
+async def get_table(table_id: str, db: DatabaseSession) -> Table:
+    table = await get_table_by_id(db, table_id)
     if table is None:
         raise HTTPException(status_code=404, detail="Table not found")
     return table
