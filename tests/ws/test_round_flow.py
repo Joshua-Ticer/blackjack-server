@@ -40,6 +40,11 @@ async def test_full_round_result_matches_users_me(client, table_and_token, ws_cl
 
         ws.send_json({"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())})
 
+        bet_ack = ws.receive_json()
+        assert bet_ack["type"] == "state_delta"
+        assert bet_ack["change"] == "bet_placed"
+        assert bet_ack["detail"]["amount"] == BET_AMOUNT
+
         # betting_window_seconds (0.05s) elapses on its own -- the actor deals
         # and broadcasts the post-deal snapshot, then prompts our turn.
         dealt = ws.receive_json()
@@ -90,6 +95,7 @@ async def test_disconnect_mid_turn_auto_stands_via_timeout(client, table_and_tok
 
         ws.send_json({"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())})
 
+        ws.receive_json()  # bet_placed delta
         ws.receive_json()  # post-deal table_state
         turn = ws.receive_json()
         assert turn["type"] == "player_turn"

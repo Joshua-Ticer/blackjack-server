@@ -121,6 +121,7 @@ class SettlementItem(BaseModel):
 class RoundResultMsg(BaseModel):
     type: Literal["round_result"] = "round_result"
     results: list[SettlementItem]
+    dealer_hand: list[str] = []
     state_version: int
 
 class Pong(BaseModel):

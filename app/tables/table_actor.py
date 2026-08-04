@@ -38,6 +38,7 @@ class TableActor:
         self._seats: Dict[str, int] = {} # player id -> bet amount
         self._seen_actions: set = set()
         self._version = 0
+        self._turn_seq = 0
         self.table_id = table_id
         self.seed = seed
         self.rules: TableRules = rules
@@ -95,6 +96,11 @@ class TableActor:
                     await self._close_betting_and_deal()
                 elif act == "action":
                     await self._handle_action(player_id, event)
+                elif act == "auto_stand":
+                    if event == self._turn_seq:
+                        await self._handle_action(
+                            player_id, PlayerAction(action="stand", action_id=uuid4())
+                        )
                 elif act == "leave_table":
                     await self._handle_leave(player_id)
             except RoundError as e:
@@ -120,6 +126,8 @@ class TableActor:
         if event.action_id in self._seen_actions:
             return
         self._seen_actions.add(event.action_id)
+        if self.sm.state != TableState.BETTING_OPEN:
+            raise RoundError("betting is closed")
 
         if not (self.rules.min_bet <= event.amount <= self.rules.max_bet):
             raise InvalidBetError(f"bet must be in between {self.rules.min_bet} and {self.rules.max_bet}")
@@ -132,6 +140,13 @@ class TableActor:
             raise InvalidBetError("insufficient chip count")
 
         self._seats[player_id] = event.amount
+        self._version += 1
+        await self._broadcast(StateDelta(
+            change="bet_placed",
+            player_id=player_id,
+            detail={"amount": event.amount},
+            state_version=self._version,
+        ))
 
     async def _handle_action(self, player_id, event: PlayerAction):
         if event.state_version is not None and event.state_version != self._version:
@@ -175,9 +190,9 @@ class TableActor:
 
 
 
-    async def _ensure_shoe(self) -> None:
+    async def _ensure_shoe(self) -> Shoe:
         if self.shoe is not None and not self.shoe.needs_shuffle(self.rules.penetration):
-            return
+            return self.shoe
 
         async with SessionLocal() as session:
             async with session.begin():
@@ -192,16 +207,17 @@ class TableActor:
                 self.session_id = new_session.id
 
         self.shoe = Shoe(seed=self.seed)
+        return self.shoe
 
     async def _close_betting_and_deal(self):
         if self.sm.state != TableState.BETTING_OPEN:
             return  # already closed by the other trigger (timer vs. all-bets-in race)
 
         self.sm.fire(TableEvent.BETS_LOCKED)
-        await self._ensure_shoe()
+        shoe = await self._ensure_shoe()
         seated = [(pid, bet) for pid, bet in self._seats.items() if bet > 0]
         seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in seated]
-        self.round = Round(self.shoe, self.rules, seats)
+        self.round = Round(shoe, self.rules, seats)
         self.round.deal_initial()
 
         async with SessionLocal() as session:
@@ -252,9 +268,10 @@ class TableActor:
             return
 
     async def _run_dealer_and_settle(self):
-        if self.round is None:
+        if self.round is None or self.round_id is None:
             raise RoundError("no round in progress")
 
+        self._turn_seq += 1
         self.sm.fire(TableEvent.ALL_PLAYERS_DONE)
         self.round.advance_to_dealer_turn()
         self.sm.fire(TableEvent.DEALER_DONE)
@@ -276,7 +293,11 @@ class TableActor:
         ]
 
         self._version += 1
-        await self._broadcast(RoundResultMsg(results=items, state_version=self._version))
+        await self._broadcast(RoundResultMsg(
+            results=items,
+            dealer_hand=[str(c) for c in self.round.dealer_hand.cards],
+            state_version=self._version,
+        ))
         await self._reset_for_next_round()
 
     async def _reset_for_next_round(self):
@@ -311,15 +332,11 @@ class TableActor:
 
     def _schedule_turn_timeout(self, player_id, deadline_seconds):
         loop = asyncio.get_running_loop()
-        version_at_send = self._version
+        self._turn_seq += 1
+        seq = self._turn_seq
         loop.call_later(
             deadline_seconds,
-            lambda: self.queue.put_nowait((
-                "action",
-                player_id,
-                PlayerAction(action="stand", action_id=uuid4(), state_version=version_at_send),
-                None,
-            )),
+            lambda: self.queue.put_nowait(("auto_stand", player_id, seq, None)),
         )
 
     async def _send_error(self, player_id: str, detail: str):
