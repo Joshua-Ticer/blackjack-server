@@ -15,6 +15,7 @@ from pydantic import TypeAdapter
 from app.api import deps
 from app.api.routes import tables as tables_routes
 from app.api.ws.schemas import ClientEvent
+from app.db.session import SessionLocal
 from app.engine.rules import TableRules
 from app.tables.table_manager import table_manager
 
@@ -27,13 +28,13 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str, token: str):
     client_event_adapter = TypeAdapter(ClientEvent)
     
     try:
-        user = deps.decode_access_token(token)
+        user_id = deps.decode_access_token(token)
     except ValueError:
         await websocket.close(code=4401)
         return
-    
 
-    curr_table = tables_routes.get_table_by_id(table_id)
+    async with SessionLocal() as session:
+        curr_table = await tables_routes.get_table_by_id(session, table_id)
     if curr_table is None:
         await websocket.close(code=4404)
         return
@@ -46,13 +47,12 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str, token: str):
         while True:
             raw = await websocket.receive_json()
             event = client_event_adapter.validate_python(raw)
-            if event.type == "join_table":
-                await actor.handle_join(websocket, user.id)
-            elif event.type == "ping":
+            if event.type == "ping":
+                # Doesn't touch table state, so it can be answered inline.
                 await actor.handle_ping(websocket)
             else:
-                kind = event.type  # "sit" / "place_bet" / "action" / "leave_table"
-                await actor.queue.put((kind, user.id, event))
+                # "join_table" / "sit" / "place_bet" / "action" / "leave_table"
+                await actor.queue.put((event.type, user_id, event, websocket))
     except WebSocketDisconnect:
         actor.unregister(websocket)
 

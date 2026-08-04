@@ -80,9 +80,14 @@ class TableActor:
 
     async def run(self):
         while True:
-            act, player_id, event = await self.queue.get()
+            act, player_id, event, ws = await self.queue.get()
             try:
-                if act == "sit":
+                if act == "join_table":
+                    # Queued rather than served straight from the gateway: a snapshot
+                    # read must not overtake writes this client already sent, and all
+                    # table-state access belongs to the single writer.
+                    await self.handle_join(ws, player_id)
+                elif act == "sit":
                     await self._handle_sit(player_id)
                 elif act == "place_bet":
                     await self._handle_place_bet(player_id, event)
@@ -301,7 +306,7 @@ class TableActor:
         loop = asyncio.get_running_loop()
         loop.call_later(
             deadline_seconds,
-            lambda: self.queue.put_nowait(("close_betting", None, None)),
+            lambda: self.queue.put_nowait(("close_betting", None, None, None)),
         )
 
     def _schedule_turn_timeout(self, player_id, deadline_seconds):
@@ -309,9 +314,12 @@ class TableActor:
         version_at_send = self._version
         loop.call_later(
             deadline_seconds,
-            lambda: self.queue.put_nowait(
-                ("action", player_id, PlayerAction(action="stand", action_id=uuid4(), state_version=version_at_send))
-            ),
+            lambda: self.queue.put_nowait((
+                "action",
+                player_id,
+                PlayerAction(action="stand", action_id=uuid4(), state_version=version_at_send),
+                None,
+            )),
         )
 
     async def _send_error(self, player_id: str, detail: str):
