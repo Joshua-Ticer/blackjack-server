@@ -41,8 +41,6 @@ class PaginatedLedger(BaseModel):
     limit: int
     offset: int
 
-
-
 @router.get("/rounds", response_model=PaginatedRounds)
 async def get_round_history(
     db: DatabaseSession,
