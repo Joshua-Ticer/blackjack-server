@@ -1,0 +1,170 @@
+Screen {
+    background: $surface;
+}
+
+.area-title {
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.error {
+    color: #d62828;
+    text-style: bold;
+}
+
+.info {
+    color: $text-muted;
+}
+
+/* --- login --- */
+
+#login-card {
+    width: 44;
+    height: auto;
+    padding: 1 2;
+    border: round $primary;
+    background: $panel;
+}
+
+#login-title {
+    text-align: center;
+    text-style: bold;
+    color: #e9c46a;
+}
+
+#login-subtitle {
+    text-align: center;
+    color: $text-muted;
+    padding-bottom: 1;
+}
+
+#login-card Input {
+    margin-bottom: 1;
+}
+
+#login-card Button {
+    margin: 0 1;
+}
+
+#login-status {
+    height: auto;
+    padding-top: 1;
+    text-align: center;
+}
+
+/* --- lobby --- */
+
+#lobby-body {
+    padding: 1 2;
+}
+
+#lobby-bar {
+    height: 1;
+    margin-bottom: 1;
+}
+
+#lobby-title {
+    text-style: bold;
+    color: #e9c46a;
+    width: 1fr;
+}
+
+#lobby-chips {
+    width: auto;
+    color: $text-muted;
+}
+
+#tables {
+    height: 1fr;
+    border: round $panel-lighten-2;
+}
+
+#lobby-status {
+    height: 1;
+    margin-top: 1;
+    color: $text-muted;
+}
+
+/* --- table --- */
+
+#table-body {
+    padding: 0 2;
+}
+
+#dealer-area {
+    height: auto;
+    padding-top: 1;
+}
+
+#dealer-total {
+    padding: 0 1;
+}
+
+#table-divider {
+    height: 1;
+    border-bottom: solid $panel-lighten-2;
+}
+
+#felt {
+    height: 1fr;
+    min-height: 3;
+}
+
+#seats {
+    height: auto;
+}
+
+#result-panel {
+    height: auto;
+    border: round #e9c46a;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+#status-bar {
+    height: 1;
+    margin-top: 1;
+}
+
+#lobby-state {
+    width: 1fr;
+    text-style: bold;
+}
+
+#bet-bar {
+    height: 3;
+    min-height: 3;
+    margin-top: 1;
+}
+
+#bet-label {
+    width: 5;
+    height: 3;
+    content-align: left middle;
+    text-style: bold;
+}
+
+#bet-input {
+    width: 16;
+}
+
+#bet-hint {
+    height: 3;
+    padding-left: 2;
+    content-align: left middle;
+}
+
+#action-bar {
+    height: 3;
+    margin-top: 1;
+}
+
+#action-bar Button {
+    margin-right: 1;
+    min-width: 14;
+}
+
+#table-error {
+    height: 1;
+}
