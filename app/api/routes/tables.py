@@ -46,6 +46,12 @@ async def create_table(body: TableCreate, db: DatabaseSession, user: User = Depe
     return table
 
 async def get_table_by_id(db: AsyncSession, table_id: str) -> Table | None:
+    # A well-formed str binds fine to the UUID column, but a malformed one raises
+    # ValueError/DataError down in asyncpg -- a 500 for what is really "not found".
+    try:
+        UUID(table_id)
+    except ValueError:
+        return None
     return await db.get(Table, table_id)
 
 @router.get("/{table_id}", response_model=TableResponse)

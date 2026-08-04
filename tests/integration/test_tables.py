@@ -55,8 +55,10 @@ async def test_history_rounds_requires_auth(client: AsyncClient):
     assert resp.status_code == 401
 
 
-async def test_history_rounds_paginated(client: AsyncClient, signup_and_login):
-    headers, _ = await signup_and_login()
+async def test_history_rounds_paginated(client: AsyncClient, signup_and_login, seed_history):
+    headers, user = await signup_and_login()
+    seeded = await seed_history(user["id"])
+
     resp = await client.get("/history/rounds", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
@@ -64,6 +66,8 @@ async def test_history_rounds_paginated(client: AsyncClient, signup_and_login):
     assert body["limit"] == 20
     assert body["offset"] == 0
     assert len(body["items"]) == 2
+    # newest round first
+    assert [i["round_id"] for i in body["items"]] == seeded["round_ids"]
 
     resp2 = await client.get("/history/rounds?limit=1&offset=1", headers=headers)
     assert resp2.status_code == 200
@@ -71,7 +75,7 @@ async def test_history_rounds_paginated(client: AsyncClient, signup_and_login):
     assert body2["limit"] == 1
     assert body2["offset"] == 1
     assert len(body2["items"]) == 1
-    assert body2["items"][0]["round_id"] == "r2"
+    assert body2["items"][0]["round_id"] == seeded["round_ids"][1]
 
 
 async def test_history_ledger_requires_auth(client: AsyncClient):
@@ -79,10 +83,15 @@ async def test_history_ledger_requires_auth(client: AsyncClient):
     assert resp.status_code == 401
 
 
-async def test_history_ledger_paginated(client: AsyncClient, signup_and_login):
-    headers, _ = await signup_and_login()
+async def test_history_ledger_paginated(client: AsyncClient, signup_and_login, seed_history):
+    headers, user = await signup_and_login()
+    await seed_history(user["id"])
+
     resp = await client.get("/history/ledger", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
     assert len(body["items"]) == 2
+    # newest entry first: the seeded loss follows the win
+    assert [i["type"] for i in body["items"]] == ["loss", "win"]
+    assert [i["amount"] for i in body["items"]] == [-25, 25]
