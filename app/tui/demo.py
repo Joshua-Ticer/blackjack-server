@@ -27,9 +27,29 @@ ME = "11111111-1111-1111-1111-111111111111"
 BOT = "22222222-2222-2222-2222-222222222222"
 TABLE_ID = "33333333-3333-3333-3333-333333333333"
 
-RULES = TableRules(min_bet=5, max_bet=500, betting_window_seconds=30, turn_timeout_seconds=60)
-BOT_BET = 10
+TABLES: list[dict[str, Any]] = [
+    {"id": TABLE_ID, "name": "High Roller", "min_bet": 25, "max_bet": 500, "status": "open"},
+    {"id": "44444444-4444-4444-4444-444444444444", "name": "Low Stakes",
+     "min_bet": 1, "max_bet": 50, "status": "open"},
+]
+
+BETTING_WINDOW = 30
+TURN_TIMEOUT = 60
 POST_ROUND_PAUSE = 3.0
+
+
+def rules_for(table_id: str) -> TableRules:
+    table = next((t for t in TABLES if t["id"] == table_id), TABLES[0])
+    return TableRules(
+        min_bet=int(table["min_bet"]),
+        max_bet=int(table["max_bet"]),
+        betting_window_seconds=BETTING_WINDOW,
+        turn_timeout_seconds=TURN_TIMEOUT,
+    )
+
+
+def bot_bet_for(rules: TableRules) -> int:
+    return max(rules.min_bet, min(10, rules.max_bet))
 
 
 def deadline(seconds: float) -> str:
@@ -51,10 +71,14 @@ class EngineTransport:
         self.balance = 1000
         self.version = 0
         self.force_pairs = force_pairs
+        self.rules = rules_for(TABLE_ID)
 
     # -- transport interface ------------------------------------------------
 
     async def connect(self, url: str) -> None:
+        # the ws url carries the table id, so the demo honours that table's limits
+        table_id = url.split("/ws/tables/", 1)[-1].split("?", 1)[0]
+        self.rules = rules_for(table_id)
         self.push(self.snapshot("idle"))
 
     async def close(self) -> None:
@@ -114,7 +138,7 @@ class EngineTransport:
         if self.round is None:
             seats = [
                 {"player_id": ME, "hands": [], "bets": [self.bet], "outcomes": []},
-                {"player_id": BOT, "hands": [], "bets": [BOT_BET], "outcomes": []},
+                {"player_id": BOT, "hands": [], "bets": [bot_bet_for(self.rules)], "outcomes": []},
             ]
             dealer: list[str] = []
         else:
@@ -135,9 +159,9 @@ class EngineTransport:
         self.round = None
         self.push({
             "type": "betting_open",
-            "deadline": deadline(RULES.betting_window_seconds),
-            "min_bet": RULES.min_bet,
-            "max_bet": RULES.max_bet,
+            "deadline": deadline(self.rules.betting_window_seconds),
+            "min_bet": self.rules.min_bet,
+            "max_bet": self.rules.max_bet,
             "state_version": self.next_version(),
         })
 
@@ -154,12 +178,15 @@ class EngineTransport:
         self.later(1.2, *self.deal())
 
     def deal(self) -> list[dict[str, Any]]:
-        if self.shoe.needs_shuffle(RULES.penetration):
+        if self.shoe.needs_shuffle(self.rules.penetration):
             self.shoe = Shoe()
         self.round = Round(
             self.shoe,
-            RULES,
-            [Seat(player_id=ME, bets=[self.bet]), Seat(player_id=BOT, bets=[BOT_BET])],
+            self.rules,
+            [
+                Seat(player_id=ME, bets=[self.bet]),
+                Seat(player_id=BOT, bets=[bot_bet_for(self.rules)]),
+            ],
         )
         self.round.deal_initial()
         if self.force_pairs:
@@ -194,7 +221,7 @@ class EngineTransport:
                 "player_id": ME,
                 "hand_index": index,
                 "legal_actions": [a.value for a in actions],
-                "deadline": deadline(RULES.turn_timeout_seconds),
+                "deadline": deadline(self.rules.turn_timeout_seconds),
                 "state_version": self.next_version(),
             }]
         return self.finish()
@@ -274,9 +301,9 @@ class EngineTransport:
         self.round = None
         return {
             "type": "betting_open",
-            "deadline": deadline(RULES.betting_window_seconds),
-            "min_bet": RULES.min_bet,
-            "max_bet": RULES.max_bet,
+            "deadline": deadline(self.rules.betting_window_seconds),
+            "min_bet": self.rules.min_bet,
+            "max_bet": self.rules.max_bet,
             "state_version": self.next_version(),
         }
 
@@ -293,10 +320,7 @@ def fake_backend(request: httpx.Request) -> httpx.Response:
             json={"id": ME, "username": "demo", "chip_balance": 1000, "is_admin": False},
         )
     if path == "/tables":
-        return httpx.Response(200, json=[
-            {"id": TABLE_ID, "name": "High Roller", "min_bet": 5, "max_bet": 500, "status": "open"},
-            {"id": "b", "name": "Low Stakes", "min_bet": 1, "max_bet": 50, "status": "open"},
-        ])
+        return httpx.Response(200, json=TABLES)
     return httpx.Response(404, json={"detail": "not found"})
 
 
