@@ -61,3 +61,8 @@ class Card:
 
     def __str__(self) -> str:
         return f"{self.rank.value}{self.suit.value}"
+
+    @classmethod
+    def parse(cls, text: str) -> "Card":
+        return cls(rank=Rank(text[:-1]), suit=Suit(text[-1]))
+

@@ -21,7 +21,9 @@ def _connect(ws_client, table_id, token):
     return ws_client.websocket_connect(f"/ws/tables/{table_id}?token={token}")
 
 
-async def test_full_round_result_matches_users_me(client, table_and_token, ws_client, seed_table_manager):
+async def test_full_round_result_matches_users_me(
+    client, table_and_token, ws_client, seed_table_manager
+):
     table_id, token, player = table_and_token
     seed_table_manager(
         TableRules(min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=5),
@@ -76,7 +78,9 @@ async def test_full_round_result_matches_users_me(client, table_and_token, ws_cl
     assert me.json()["chip_balance"] == outcome["balance_after"]
 
 
-async def test_disconnect_mid_turn_auto_stands_via_timeout(client, table_and_token, ws_client, seed_table_manager):
+async def test_disconnect_mid_turn_auto_stands_via_timeout(
+    client, table_and_token, ws_client, seed_table_manager
+):
     """A player who drops the connection mid-turn must not stall the round --
     the turn-timeout timer (independent of any live connection) has to fire the
     auto-stand and carry the round through to settlement regardless."""

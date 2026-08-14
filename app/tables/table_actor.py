@@ -8,16 +8,29 @@ TODO:
 - snapshot() / restore()  -- periodic Redis-backed persistence for crash recovery (Phase 5)
 """
 import asyncio
-from datetime import datetime, timedelta, timezone
-from typing import Dict
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import WebSocket
+
 from app.api import deps
-from app.api.ws.schemas import BettingOpen, ErrorMsg, PlaceBet, PlayerAction, PlayerTurn, Pong, RoundResultMsg, SeatView, ServerEvent, SettlementItem, StateDelta, TableStateMsg
+from app.api.ws.schemas import (
+    BettingOpen,
+    ErrorMsg,
+    PlaceBet,
+    PlayerAction,
+    PlayerTurn,
+    Pong,
+    RoundResultMsg,
+    SeatView,
+    ServerEvent,
+    SettlementItem,
+    StateDelta,
+    TableStateMsg,
+)
 from app.db.session import SessionLocal
-from app.engine.hand import Hand
 from app.engine.deck import Shoe
+from app.engine.hand import Hand
 from app.engine.round import InvalidBetError, Round, RoundError, Seat, SeatNotFoundError
 from app.engine.rules import Action, TableRules
 from app.engine.state_machine import StateMachine, TableEvent, TableState
@@ -34,9 +47,10 @@ class TableActor:
         self.session_id: UUID | None = None
         self.round_id: UUID | None = None
         self.queue: asyncio.Queue = asyncio.Queue()
-        self.connections: Dict[WebSocket, str | None] = {} # ws -> player id
-        self._seats: Dict[str, int] = {} # player id -> bet amount
+        self.connections: dict[WebSocket, str | None] = {} # ws -> player id
+        self._seats: dict[str, int] = {} # player id -> bet amount
         self._seen_actions: set = set()
+        self._balances: dict[str, int] = {}
         self._version = 0
         self._turn_seq = 0
         self.table_id = table_id
@@ -72,6 +86,41 @@ class TableActor:
         dealer_hand=dealer_hand,
         state_version=self._version,
     )
+
+    def snapshot(self) -> dict:
+        return {
+            "sm_state": self.sm.state.name,
+            "session_id": str(self.session_id) if self.session_id else None,
+            "round_id": str(self.round_id) if self.round_id else None,
+            "seats": self._seats,
+            "seen_actions": [str(a) for a in self._seen_actions],
+            "version": self._version,
+            "round": self._serialize_round() if self.round is not None else None,
+        }
+
+    def _serialize_round(self) -> dict:
+        if self.round is None:
+            raise RuntimeError("_serialize_round called but self.round is None")
+        seats = [self._serialize_seat(seat) for seat in self.round.seats]
+        dealer = [str(c) for c in self.round.dealer_hand.cards]
+        return {
+            "seats": seats,
+            "dealer_hand": dealer,
+            "state": self.round.sm.state.name,
+        }
+
+    def _serialize_seat(self, seat: Seat) -> dict:
+        return {
+            "player_id": seat.player_id,
+            "hands": [[str(c) for c in hand.cards] for hand in seat.hands],
+            "bets": list(seat.bets),
+            "active_hand_index": seat.active_hand_index,
+            "surrendered_hands": sorted(seat.surrendered_hands),
+            "standing_hands": sorted(seat.standing_hands),
+            "doubled_hands": sorted(seat.doubled_hands),
+            "split_aces_hands": sorted(seat.split_aces_hands),
+            "total_splits": seat.total_splits,
+        }
 
     def _dealer_view(self, dealer_hand: Hand, lobby_state) -> list[str]:
         cards = [f"{c.rank.value}{c.suit.value}" for c in dealer_hand.cards]
@@ -130,7 +179,9 @@ class TableActor:
             raise RoundError("betting is closed")
 
         if not (self.rules.min_bet <= event.amount <= self.rules.max_bet):
-            raise InvalidBetError(f"bet must be in between {self.rules.min_bet} and {self.rules.max_bet}")
+            raise InvalidBetError(
+                f"bet must be in between {self.rules.min_bet} and {self.rules.max_bet}"
+            )
 
         async with SessionLocal() as session:
             user = await deps.get_user_by_id(session, player_id)
@@ -148,6 +199,12 @@ class TableActor:
             state_version=self._version,
         ))
 
+    def _affordable(self, seat: Seat, actions: set[Action]) -> set[Action]:
+        headroom = self._balances.get(seat.player_id, 0) - sum(seat.bets)
+        if headroom >= seat.bets[seat.active_hand_index]:
+            return actions
+        return actions - {Action.SPLIT, Action.DOUBLE}
+
     async def _handle_action(self, player_id, event: PlayerAction):
         if event.state_version is not None and event.state_version != self._version:
             return  
@@ -159,15 +216,28 @@ class TableActor:
 
         seat = self.round._get_seat(player_id)
         index = seat.active_hand_index
-        self.round.player_action(player_id, Action(event.action))
+
+        action = Action(event.action)
+        if action not in self._affordable(seat, self.round.legal_actions_for(player_id)):
+            raise RoundError("insufficient chips for that action")
+
+        hands_before = len(seat.hands)
+        self.round.player_action(player_id, action)
         self._version += 1
         await self._broadcast(StateDelta(
             change="action_applied",
             player_id=player_id,
             hand_index=index,
-            detail={"action": event.action, "hand": [f"{c.rank.value}{c.suit.value}" for c in seat.hands[index].cards]},
+            detail={
+                "action": event.action,
+                "hand": [f"{c.rank.value}{c.suit.value}" for c in seat.hands[index].cards],
+            },
             state_version=self._version,
         ))
+
+        if len(seat.hands) != hands_before:
+            self._version += 1
+            await self._broadcast(self._build_snapshot())
 
         if self.round.all_seats_done():
             await self._run_dealer_and_settle()
@@ -199,7 +269,7 @@ class TableActor:
                 if self.session_id is not None:
                     old_session = await session.get(GameSession, self.session_id)
                     if old_session is not None:
-                        old_session.ended_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                        old_session.ended_at = datetime.now(UTC).replace(tzinfo=None)
 
                 new_session = GameSession(table_id=self.table_id, deck_seed=self.seed)
                 session.add(new_session)
@@ -219,6 +289,11 @@ class TableActor:
         seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in seated]
         self.round = Round(shoe, self.rules, seats)
         self.round.deal_initial()
+
+        async with SessionLocal() as session:
+            for pid, _ in seated:
+                user = await deps.get_user_by_id(session, pid)
+                self._balances[pid] = user.chip_balance if user is not None else 0
 
         async with SessionLocal() as session:
             async with session.begin():
@@ -255,7 +330,7 @@ class TableActor:
             if seat.is_hand_done(index):
                 continue
 
-            actions = self.round.legal_actions_for(seat.player_id)
+            actions = self._affordable(seat, self.round.legal_actions_for(seat.player_id))
             self._version += 1
             await self._broadcast_to_player(PlayerTurn(
                 player_id=seat.player_id,
@@ -304,6 +379,7 @@ class TableActor:
         self.round = None
         self.round_id = None
         self._seen_actions.clear()
+        self._balances.clear()
         for pid in self._seats:
             self._seats[pid] = 0
 

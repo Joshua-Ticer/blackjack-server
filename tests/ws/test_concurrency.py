@@ -112,7 +112,9 @@ async def test_another_player_leaving_does_not_void_pending_turn_timeout(
     assert me.json()["chip_balance"] == 10010
 
 
-async def test_duplicate_place_bet_action_id_applies_once(table_and_token, ws_client, seed_table_manager):
+async def test_duplicate_place_bet_action_id_applies_once(
+    table_and_token, ws_client, seed_table_manager
+):
     table_id, token, _player = table_and_token
     seed_table_manager(
         TableRules(min_bet=5, max_bet=500, betting_window_seconds=5, turn_timeout_seconds=5),
@@ -128,7 +130,8 @@ async def test_duplicate_place_bet_action_id_applies_once(table_and_token, ws_cl
 
         bet_id = str(uuid4())
         ws.send_json({"type": "place_bet", "amount": 10, "action_id": bet_id})
-        ws.send_json({"type": "place_bet", "amount": 999, "action_id": bet_id})  # dup id, different amount
+        # dup id, different amount
+        ws.send_json({"type": "place_bet", "amount": 999, "action_id": bet_id})
 
         # exactly one bet_placed ack: the duplicate is deduped before it can emit.
         # If dedup were broken there'd be a second ack for 999 ahead of the snapshot.

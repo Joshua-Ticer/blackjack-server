@@ -13,9 +13,8 @@ that production code has no reason to expose:
   before the first websocket connects.
 """
 
-from starlette.testclient import TestClient
-
 import pytest
+from starlette.testclient import TestClient
 
 from app.engine.rules import TableRules
 from app.main import app

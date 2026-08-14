@@ -6,6 +6,7 @@ TODO:
 - (Phase 5) lease/ownership of a table id via a Redis lock, for multi-instance scale-out
 """
 import asyncio
+
 from app.tables.table_actor import TableActor
 
 
