@@ -21,13 +21,17 @@ def _connect(ws_client, table_id, token):
     return ws_client.websocket_connect(f"/ws/tables/{table_id}?token={token}")
 
 
-async def test_duplicate_hit_action_id_applies_once(table_and_token, ws_client, seed_table_manager):
+async def test_duplicate_hit_action_id_applies_once(
+    table_and_token, ws_client, seed_table_manager
+):
     table_id, token, _player = table_and_token
     # seed 2: player's initial 2 cards total 10, first hit lands a 10 (total 20,
     # neither bust nor blackjack) -- see tests/ws/conftest.py for how the seed
     # reaches the actor.
     seed_table_manager(
-        TableRules(min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=5),
+        TableRules(
+            min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=5
+        ),
         seed=2,
     )
 
@@ -77,7 +81,9 @@ async def test_another_player_leaving_does_not_void_pending_turn_timeout(
     dropped and the round hangs on that turn forever."""
     table_id, token, _player = table_and_token
     seed_table_manager(
-        TableRules(min_bet=5, max_bet=500, betting_window_seconds=0.4, turn_timeout_seconds=0.2),
+        TableRules(
+            min_bet=5, max_bet=500, betting_window_seconds=0.4, turn_timeout_seconds=0.2
+        ),
         seed=10,
     )
     leaver_headers, _leaver = await signup_and_login(username="leaver")
@@ -117,7 +123,9 @@ async def test_duplicate_place_bet_action_id_applies_once(
 ):
     table_id, token, _player = table_and_token
     seed_table_manager(
-        TableRules(min_bet=5, max_bet=500, betting_window_seconds=5, turn_timeout_seconds=5),
+        TableRules(
+            min_bet=5, max_bet=500, betting_window_seconds=5, turn_timeout_seconds=5
+        ),
         seed=1,
     )
 

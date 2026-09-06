@@ -32,25 +32,33 @@ async def settle_round(
 
                 for r in player_results:
                     user.chip_balance += r.net
-                    session.add(LedgerEntry(
-                        user_id=player_id,
-                        round_id=round_id,
-                        amount=r.net,
-                        type=r.outcome.value,
-                        balance_after=user.chip_balance,
-                    ))
+                    session.add(
+                        LedgerEntry(
+                            user_id=player_id,
+                            round_id=round_id,
+                            amount=r.net,
+                            type=r.outcome.value,
+                            balance_after=user.chip_balance,
+                        )
+                    )
                 balances[player_id] = user.chip_balance
 
                 seat = seats_by_player[player_id]
-                participation = (await session.execute(
-                    select(Participation).where(
-                        Participation.round_id == round_id,
-                        Participation.user_id == player_id,
+                participation = (
+                    await session.execute(
+                        select(Participation).where(
+                            Participation.round_id == round_id,
+                            Participation.user_id == player_id,
+                        )
                     )
-                )).scalar_one_or_none()
+                ).scalar_one_or_none()
                 if participation is not None:
-                    participation.hands = [[str(c) for c in hand.cards] for hand in seat.hands]
-                    participation.outcome = "/".join(r.outcome.value for r in player_results)
+                    participation.hands = [
+                        [str(c) for c in hand.cards] for hand in seat.hands
+                    ]
+                    participation.outcome = "/".join(
+                        r.outcome.value for r in player_results
+                    )
                     participation.payout = sum(r.payout for r in player_results)
 
             round_row = await session.get(RoundModel, round_id)

@@ -11,7 +11,9 @@ TODO:
 - can_transition(state, event) -> bool
 - transition(state, event) -> State  (raises on illegal transition)
 """
+
 from enum import Enum, auto
+
 
 class TableState(Enum):
     IDLE = auto()
@@ -22,15 +24,17 @@ class TableState(Enum):
     DEALER_TURN = auto()
     SETTLEMENT = auto()
 
+
 class TableEvent(Enum):
     PLAYERS_SEATED = auto()
     BETS_LOCKED = auto()
-    START_DEAL = auto()      
-    DEAL_COMPLETE = auto()    
+    START_DEAL = auto()
+    DEAL_COMPLETE = auto()
     ALL_PLAYERS_DONE = auto()
     DEALER_DONE = auto()
     SETTLED = auto()
     ROUND_RESET = auto()
+
 
 TRANSITIONS: dict[tuple[TableState, TableEvent], TableState] = {
     (TableState.IDLE, TableEvent.PLAYERS_SEATED): TableState.BETTING_OPEN,
@@ -42,8 +46,10 @@ TRANSITIONS: dict[tuple[TableState, TableEvent], TableState] = {
     (TableState.SETTLEMENT, TableEvent.SETTLED): TableState.IDLE,
 }
 
+
 class InvalidTransition(Exception):
     pass
+
 
 class StateMachine:
     def __init__(self, initial: TableState = TableState.IDLE):

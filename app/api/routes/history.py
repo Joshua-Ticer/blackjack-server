@@ -14,6 +14,7 @@ from app.models.round import Participation, Round
 router = APIRouter(prefix="/history", tags=["history"])
 DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
 
+
 class RoundHistoryItem(BaseModel):
     round_id: str
     table_id: str
@@ -41,6 +42,7 @@ class PaginatedLedger(BaseModel):
     limit: int
     offset: int
 
+
 @router.get("/rounds", response_model=PaginatedRounds)
 async def get_round_history(
     db: DatabaseSession,
@@ -48,32 +50,37 @@ async def get_round_history(
     limit: int = Query(default=20, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> PaginatedRounds:
-        stmt = (
-            select(Participation, Round.table_id)
-            .join(Round, Participation.round_id == Round.id)
-            .where(Participation.user_id == user.id)
-            .order_by(Round.started_at.desc())
-            .limit(limit)
-            .offset(offset)
-        )
-        rows = (await db.execute(stmt)).all()
+    stmt = (
+        select(Participation, Round.table_id)
+        .join(Round, Participation.round_id == Round.id)
+        .where(Participation.user_id == user.id)
+        .order_by(Round.started_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = (await db.execute(stmt)).all()
 
-        items = []
-        for p, table_id in rows:
-            net = await db.scalar(
-                select(func.sum(LedgerEntry.amount))
-                .where(LedgerEntry.round_id == p.round_id, LedgerEntry.user_id == user.id)
+    items = []
+    for p, table_id in rows:
+        net = await db.scalar(
+            select(func.sum(LedgerEntry.amount)).where(
+                LedgerEntry.round_id == p.round_id, LedgerEntry.user_id == user.id
             )
-            items.append(RoundHistoryItem(
+        )
+        items.append(
+            RoundHistoryItem(
                 round_id=str(p.round_id),
                 table_id=str(table_id),
                 outcome=p.outcome or "",
                 net=net or 0,
-            ))
-        total = await db.scalar(
-            select(func.count()).select_from(Participation).where(Participation.user_id == user.id)
+            )
         )
-        return PaginatedRounds(items=items, total=total or 0, limit=limit, offset=offset)
+    total = await db.scalar(
+        select(func.count())
+        .select_from(Participation)
+        .where(Participation.user_id == user.id)
+    )
+    return PaginatedRounds(items=items, total=total or 0, limit=limit, offset=offset)
 
 
 @router.get("/ledger", response_model=PaginatedLedger)
@@ -91,8 +98,18 @@ async def get_ledger_history(
         .offset(offset)
     )
     rows = (await db.execute(stmt)).scalars().all()
-    items = [LedgerHistoryItem(entry_id=str(row.id), amount=row.amount, type=row.type, balance_after=row.balance_after) for row in rows]
+    items = [
+        LedgerHistoryItem(
+            entry_id=str(row.id),
+            amount=row.amount,
+            type=row.type,
+            balance_after=row.balance_after,
+        )
+        for row in rows
+    ]
     total = await db.scalar(
-        select(func.count()).select_from(LedgerEntry).where(LedgerEntry.user_id == user.id)
+        select(func.count())
+        .select_from(LedgerEntry)
+        .where(LedgerEntry.user_id == user.id)
     )
     return PaginatedLedger(items=items, total=total or 0, limit=limit, offset=offset)

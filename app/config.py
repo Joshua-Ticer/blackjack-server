@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     secret_key: str = "changeme"
 
-    database_url: str = "postgresql+asyncpg://blackjack:blackjack@localhost:5432/blackjack"
+    database_url: str = (
+        "postgresql+asyncpg://blackjack:blackjack@localhost:5432/blackjack"
+    )
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_algorithm: str = "HS256"
@@ -17,4 +19,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

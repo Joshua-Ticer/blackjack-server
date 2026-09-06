@@ -19,10 +19,10 @@ from .dealer import play_dealer_hand
 from .state_machine import StateMachine, TableEvent, TableState
 from .settlement import Outcome, SettlementResult, settle_hand
 
-
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
+
 
 class RoundError(Exception):
     """Base class for all round-level errors."""
@@ -47,6 +47,7 @@ class InvalidBetError(RoundError):
 # Seat
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Seat:
     player_id: str
@@ -66,8 +67,9 @@ class Seat:
             or hand.is_blackjack
             or index in self.standing_hands
             or index in self.surrendered_hands
-            or index in self.doubled_hands       # double = exactly one more card, then done
-            or index in self.split_aces_hands     # split aces = exactly one card, then done
+            or index in self.doubled_hands  # double = exactly one more card, then done
+            or index
+            in self.split_aces_hands  # split aces = exactly one card, then done
         )
 
     def all_hands_done(self) -> bool:
@@ -84,6 +86,7 @@ class Seat:
 # ---------------------------------------------------------------------------
 # Round
 # ---------------------------------------------------------------------------
+
 
 class Round:
     def __init__(self, shoe: Shoe, rules: TableRules, seats: list[Seat]):
@@ -243,17 +246,19 @@ class Round:
 
         for seat in self.seats:
             for i, hand in enumerate(seat.hands):
-                results.append(settle_hand(
-                    rules=self.rules,
-                    player_id=seat.player_id,
-                    hand_index=i,
-                    hand=hand,
-                    bet=seat.bets[i],
-                    dealer_total=dealer_total,
-                    dealer_bust=dealer_bust,
-                    dealer_blackjack=dealer_blackjack,
-                    surrendered=i in seat.surrendered_hands,
-                ))
+                results.append(
+                    settle_hand(
+                        rules=self.rules,
+                        player_id=seat.player_id,
+                        hand_index=i,
+                        hand=hand,
+                        bet=seat.bets[i],
+                        dealer_total=dealer_total,
+                        dealer_bust=dealer_bust,
+                        dealer_blackjack=dealer_blackjack,
+                        surrendered=i in seat.surrendered_hands,
+                    )
+                )
 
         self.sm.fire(TableEvent.SETTLED)
         self._settled = True

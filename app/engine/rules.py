@@ -11,6 +11,7 @@ docs/adr/):
 TODO:
 - legal_actions(hand, table_rules) -> set[Action]
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,11 +21,12 @@ from .hand import Hand
 
 
 class Action(Enum):
-    HIT = 'hit'
-    STAND = 'stand'
-    DOUBLE = 'double'
-    SPLIT = 'split'
-    SURRENDER = 'surrender'
+    HIT = "hit"
+    STAND = "stand"
+    DOUBLE = "double"
+    SPLIT = "split"
+    SURRENDER = "surrender"
+
 
 @dataclass(frozen=True)
 class TableRules:
@@ -40,6 +42,7 @@ class TableRules:
     betting_window_seconds: int = 15
     turn_timeout_seconds: int = 30
     penetration: float = 0.75
+
 
 def legal_actions(
     hand: Hand,

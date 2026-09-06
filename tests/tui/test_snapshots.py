@@ -61,7 +61,9 @@ def test_table_betting_open(snap_compare: Callable[..., bool]) -> None:
     assert snap_compare(app, terminal_size=SIZE, run_before=run_before)
 
 
-def test_table_your_turn_with_hole_card_hidden(snap_compare: Callable[..., bool]) -> None:
+def test_table_your_turn_with_hole_card_hidden(
+    snap_compare: Callable[..., bool],
+) -> None:
     app, transport = make_app()
 
     async def run_before(pilot: Pilot[None]) -> None:

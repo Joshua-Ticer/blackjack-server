@@ -93,7 +93,9 @@ class SeatPanel(Static):
                 line.append(f"  bet {self.seat.bets[index]}", style="#8d99ae")
             outcome = self.outcomes.get(index)
             if outcome:
-                line.append(f"  {outcome.upper()}", style=OUTCOME_STYLES.get(outcome, "bold"))
+                line.append(
+                    f"  {outcome.upper()}", style=OUTCOME_STYLES.get(outcome, "bold")
+                )
             body.append(hand_text(hand))
             body.append(line)
 

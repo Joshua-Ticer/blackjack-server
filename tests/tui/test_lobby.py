@@ -35,7 +35,9 @@ async def test_empty_lobby_explains_why(bj_app: BlackjackApp, backend: FakeBacke
         assert "no tables available" in text_of(q(pilot, "#lobby-status"))
 
 
-async def test_enter_joins_selected_table(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_enter_joins_selected_table(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await do_login(pilot)
         await pilot.press("enter")
@@ -45,7 +47,9 @@ async def test_enter_joins_selected_table(bj_app: BlackjackApp, transport: FakeT
         assert TABLE_ID in transport.urls[0]
 
 
-async def test_join_sends_join_table_then_sit(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_join_sends_join_table_then_sit(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await do_login(pilot)
         await pilot.press("enter")
@@ -58,7 +62,13 @@ async def test_refresh_reloads_tables(bj_app: BlackjackApp, backend: FakeBackend
     async with bj_app.run_test() as pilot:
         await do_login(pilot)
         backend.tables.append(
-            {"id": "x", "name": "Low Stakes", "min_bet": 1, "max_bet": 20, "status": "open"}
+            {
+                "id": "x",
+                "name": "Low Stakes",
+                "min_bet": 1,
+                "max_bet": 20,
+                "status": "open",
+            }
         )
         await pilot.press("r")
         await settle(pilot)
@@ -101,7 +111,9 @@ async def test_join_with_no_tables_stays_in_lobby(
         assert transport.connect_count == 0
 
 
-async def test_join_without_a_selection_reports_error(bj_app: BlackjackApp, backend: FakeBackend):
+async def test_join_without_a_selection_reports_error(
+    bj_app: BlackjackApp, backend: FakeBackend
+):
     backend.tables = []
     async with bj_app.run_test() as pilot:
         await do_login(pilot)

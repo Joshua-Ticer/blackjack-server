@@ -39,8 +39,8 @@ def seed_table_manager(monkeypatch):
     real_get_or_create = TableManager.get_or_create
 
     def _seed(rules: TableRules, seed: int):
-        def _patched(self, table_id, _rules, seed_arg=None):
-            return real_get_or_create(self, table_id, rules, seed=seed)
+        async def _patched(self, table_id, _rules, seed_arg=None):
+            return await real_get_or_create(self, table_id, rules, seed=seed)
 
         monkeypatch.setattr(TableManager, "get_or_create", _patched)
 

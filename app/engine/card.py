@@ -10,26 +10,29 @@ TODO:
 from enum import Enum
 from dataclasses import dataclass
 
+
 class Suit(Enum):
-    HEARTS = 'H'
-    CLUBS = 'C'
-    DIAMONDS = 'D'
-    SPADES = 'S'
+    HEARTS = "H"
+    CLUBS = "C"
+    DIAMONDS = "D"
+    SPADES = "S"
+
 
 class Rank(Enum):
-    TWO = '2'
-    THREE = '3'
-    FOUR = '4'
-    FIVE = '5'
-    SIX = '6'
-    SEVEN = '7'
-    EIGHT = '8'
-    NINE = '9'
-    TEN = '10'
-    JACK = 'J'
-    QUEEN = 'Q'
-    KING = 'K'
-    ACE = 'A'
+    TWO = "2"
+    THREE = "3"
+    FOUR = "4"
+    FIVE = "5"
+    SIX = "6"
+    SEVEN = "7"
+    EIGHT = "8"
+    NINE = "9"
+    TEN = "10"
+    JACK = "J"
+    QUEEN = "Q"
+    KING = "K"
+    ACE = "A"
+
 
 # Blackjack values, kept separate from Rank's own values so JACK/QUEEN/KING
 # stay distinct enum members (equal Enum values collapse into aliases and
@@ -50,6 +53,7 @@ RANK_VALUES: dict[Rank, int] = {
     Rank.ACE: 11,
 }
 
+
 @dataclass(frozen=True)
 class Card:
     suit: Suit
@@ -65,4 +69,3 @@ class Card:
     @classmethod
     def parse(cls, text: str) -> "Card":
         return cls(rank=Rank(text[:-1]), suit=Suit(text[-1]))
-

@@ -15,7 +15,9 @@ async def test_login_screen_starts_focused_on_username(bj_app: BlackjackApp):
         assert pilot.app.focused is q(pilot, "#username", Input)
 
 
-async def test_signup_then_login_reaches_lobby(bj_app: BlackjackApp, backend: FakeBackend):
+async def test_signup_then_login_reaches_lobby(
+    bj_app: BlackjackApp, backend: FakeBackend
+):
     async with bj_app.run_test() as pilot:
         await do_login(pilot, "player", "pw")
         assert isinstance(pilot.app.screen, LobbyScreen)
@@ -24,7 +26,9 @@ async def test_signup_then_login_reaches_lobby(bj_app: BlackjackApp, backend: Fa
         assert bj_app.rest.token == "test-token"
 
 
-async def test_existing_user_can_log_in_without_signup(bj_app: BlackjackApp, backend: FakeBackend):
+async def test_existing_user_can_log_in_without_signup(
+    bj_app: BlackjackApp, backend: FakeBackend
+):
     backend.users["player"] = "pw"
     async with bj_app.run_test() as pilot:
         q(pilot, "#username", Input).value = "player"
@@ -43,7 +47,9 @@ async def test_blank_credentials_are_rejected_without_a_request(bj_app: Blackjac
         assert isinstance(pilot.app.screen, LoginScreen)
 
 
-async def test_wrong_password_shows_server_detail(bj_app: BlackjackApp, backend: FakeBackend):
+async def test_wrong_password_shows_server_detail(
+    bj_app: BlackjackApp, backend: FakeBackend
+):
     backend.users["player"] = "correct"
     async with bj_app.run_test() as pilot:
         q(pilot, "#username", Input).value = "player"

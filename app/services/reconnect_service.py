@@ -1,7 +1,12 @@
-"""Reconnect handling: rebuild a table_state snapshot for a resuming client from
-in-memory/Redis state, rather than replaying every delta.
+from app.api.ws.schemas import TableStateMsg
+from app.tables.table_actor import TableActor
+from app.tables.table_manager import TableManager
 
-TODO:
-- resume(user, table_id) -> full table_state snapshot, tagged with the current
-  monotonic state_version so the client can detect/ignore stale messages
-"""
+
+async def resume(
+    manager: TableManager, table_id: str, rules, seed=None
+) -> TableStateMsg | None:
+    actor = await manager.get_or_create(table_id, rules, seed=seed)
+    if not isinstance(actor, TableActor):
+        return None
+    return actor._build_snapshot()

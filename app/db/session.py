@@ -5,6 +5,7 @@ TODO:
 - async_sessionmaker bound to that engine
 - an async generator suitable for FastAPI's Depends() (see api/deps.py)
 """
+
 from typing import Any, AsyncGenerator
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
@@ -25,6 +26,7 @@ SessionLocal = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:

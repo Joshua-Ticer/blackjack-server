@@ -60,21 +60,29 @@ async def type_bet(pilot: Pilot[None], amount: int | str) -> None:
 # --- legal action gating ----------------------------------------------------
 
 
-async def test_no_actions_enabled_before_your_turn(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_no_actions_enabled_before_your_turn(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, table_state(lobby_state="betting_open"))
         assert enabled_actions(pilot) == set()
 
 
-async def test_buttons_match_legal_actions_exactly(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_buttons_match_legal_actions_exactly(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand", "double"]))
+        await feed(
+            pilot, transport, player_turn(legal_actions=["hit", "stand", "double"])
+        )
         assert enabled_actions(pilot) == {"hit", "stand", "double"}
 
 
-async def test_split_only_enabled_when_offered(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_split_only_enabled_when_offered(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(
@@ -90,7 +98,11 @@ async def test_player_turn_for_another_player_does_not_enable_buttons(
 ):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, player_turn(player_id=OTHER, legal_actions=["hit", "stand"]))
+        await feed(
+            pilot,
+            transport,
+            player_turn(player_id=OTHER, legal_actions=["hit", "stand"]),
+        )
         assert enabled_actions(pilot) == set()
         assert not screen(pilot).model.is_my_turn
 
@@ -106,10 +118,16 @@ async def test_illegal_action_keypress_sends_nothing(
         assert transport.sent_of("action") == []
 
 
-async def test_legal_action_keypress_sends_action(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_legal_action_keypress_sends_action(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"], state_version=5))
+        await feed(
+            pilot,
+            transport,
+            player_turn(legal_actions=["hit", "stand"], state_version=5),
+        )
         await pilot.press("h")
         await settle(pilot)
         sent = transport.sent_of("action")
@@ -117,7 +135,9 @@ async def test_legal_action_keypress_sends_action(bj_app: BlackjackApp, transpor
         assert sent[0]["action"] == "hit"
 
 
-async def test_actions_disabled_again_after_acting(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_actions_disabled_again_after_acting(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"]))
@@ -129,22 +149,42 @@ async def test_actions_disabled_again_after_acting(bj_app: BlackjackApp, transpo
 # --- state_version and action_id -------------------------------------------
 
 
-async def test_action_echoes_latest_state_version(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_action_echoes_latest_state_version(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"], state_version=5))
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=11))
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"], state_version=12))
+        await feed(
+            pilot,
+            transport,
+            player_turn(legal_actions=["hit", "stand"], state_version=5),
+        )
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=11)
+        )
+        await feed(
+            pilot,
+            transport,
+            player_turn(legal_actions=["hit", "stand"], state_version=12),
+        )
         await pilot.press("h")
         await settle(pilot)
         assert transport.sent_of("action")[0]["state_version"] == 12
 
 
-async def test_stale_state_version_is_never_sent(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_stale_state_version_is_never_sent(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"], state_version=7))
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=3))
+        await feed(
+            pilot,
+            transport,
+            player_turn(legal_actions=["hit", "stand"], state_version=7),
+        )
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=3)
+        )
         await pilot.press("h")
         await settle(pilot)
         assert transport.sent_of("action")[0]["state_version"] == 7
@@ -193,7 +233,9 @@ async def test_bet_bar_only_visible_while_betting_open(
         await feed(pilot, transport, betting_open())
         assert is_on_screen(pilot, "#bet-bar")
 
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=9))
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=9)
+        )
         assert q(pilot, "#bet-bar").display is False
 
 
@@ -215,7 +257,11 @@ async def test_action_keys_work_after_placing_a_bet(
         await open_table(pilot)
         await feed(pilot, transport, betting_open())
         await type_bet(pilot, 25)
-        await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"], state_version=9))
+        await feed(
+            pilot,
+            transport,
+            player_turn(legal_actions=["hit", "stand"], state_version=9),
+        )
         await pilot.press("s")
         await settle(pilot)
         assert [m["action"] for m in transport.sent_of("action")] == ["stand"]
@@ -230,7 +276,9 @@ async def test_bet_input_is_blurred_when_betting_closes(
         await pilot.press("b")
         assert pilot.app.screen.focused is q(pilot, "#bet-input", Input)
 
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=9))
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=9)
+        )
         assert pilot.app.screen.focused is not q(pilot, "#bet-input", Input)
 
 
@@ -283,7 +331,9 @@ async def test_next_round_prefills_your_previous_bet(
         await feed(pilot, transport, betting_open())
         await type_bet(pilot, 75)
 
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=9))
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=9)
+        )
         await feed(pilot, transport, round_result(dealer_hand=["AC", "KC"]))
         await finish_reveal(pilot)
         await feed(pilot, transport, betting_open(state_version=30))
@@ -306,12 +356,18 @@ async def test_prefill_is_clamped_to_table_limits(
         await open_table(pilot)
         await feed(pilot, transport, betting_open(min_bet=5, max_bet=500))
         await type_bet(pilot, 400)
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=9))
-        await feed(pilot, transport, betting_open(min_bet=5, max_bet=50, state_version=30))
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=9)
+        )
+        await feed(
+            pilot, transport, betting_open(min_bet=5, max_bet=50, state_version=30)
+        )
         assert "enter to bet 50" in text_of(q(pilot, "#bet-hint"))
 
 
-async def test_bet_hint_confirms_once_placed(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_bet_hint_confirms_once_placed(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, betting_open())
@@ -320,10 +376,14 @@ async def test_bet_hint_confirms_once_placed(bj_app: BlackjackApp, transport: Fa
         assert "bet 25 placed" in text_of(q(pilot, "#bet-hint"))
 
 
-async def test_bet_while_closed_is_not_sent(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_bet_while_closed_is_not_sent(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
-        await feed(pilot, transport, table_state(lobby_state="player_turns", state_version=9))
+        await feed(
+            pilot, transport, table_state(lobby_state="player_turns", state_version=9)
+        )
         screen(pilot).submit_bet()
         await settle(pilot)
         assert transport.sent_of("place_bet") == []
@@ -358,20 +418,26 @@ async def test_hole_card_stays_face_down_during_play(
         await feed(
             pilot,
             transport,
-            table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=6),
+            table_state(
+                lobby_state="player_turns", dealer_hand=["AC"], state_version=6
+            ),
         )
         assert screen(pilot).model.dealer_revealed is False
         assert "░" in text_of(q(pilot, "#dealer-hand"))
         assert "showing" in text_of(q(pilot, "#dealer-total"))
 
 
-async def test_hole_card_flips_on_round_result(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_hole_card_flips_on_round_result(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(
             pilot,
             transport,
-            table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=6),
+            table_state(
+                lobby_state="player_turns", dealer_hand=["AC"], state_version=6
+            ),
         )
         await feed(pilot, transport, round_result(dealer_hand=["AC", "KC"]))
         await finish_reveal(pilot)
@@ -427,7 +493,11 @@ async def test_outcome_is_hidden_until_the_dealer_reveal_finishes(
                 state_version=6,
             ),
         )
-        await feed(pilot, transport, round_result(dealer_hand=["AC", "5C", "6D"], outcome="win"))
+        await feed(
+            pilot,
+            transport,
+            round_result(dealer_hand=["AC", "5C", "6D"], outcome="win"),
+        )
 
         assert q(pilot, "#result-panel").display is False
         assert "░" in text_of(q(pilot, "#dealer-hand"))
@@ -453,7 +523,9 @@ async def test_dealer_cards_appear_one_at_a_time(
         await feed(
             pilot,
             transport,
-            table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=6),
+            table_state(
+                lobby_state="player_turns", dealer_hand=["AC"], state_version=6
+            ),
         )
         await feed(pilot, transport, round_result(dealer_hand=["AC", "5C", "6D"]))
 
@@ -473,10 +545,14 @@ async def test_chip_balance_only_updates_once_the_reveal_completes(
         await feed(
             pilot,
             transport,
-            table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=6),
+            table_state(
+                lobby_state="player_turns", dealer_hand=["AC"], state_version=6
+            ),
         )
         starting = bj_app.user.chip_balance
-        await feed(pilot, transport, round_result(dealer_hand=["AC", "KC"], balance_after=1234))
+        await feed(
+            pilot, transport, round_result(dealer_hand=["AC", "KC"], balance_after=1234)
+        )
 
         assert bj_app.user.chip_balance == starting
         await finish_reveal(pilot)
@@ -496,7 +572,9 @@ async def test_blackjack_never_prompts_for_an_action(
         assert transport.sent_of("action") == []
 
 
-async def test_round_result_updates_chip_balance(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_round_result_updates_chip_balance(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, round_result(balance_after=1234))
@@ -517,7 +595,9 @@ async def test_another_players_result_is_not_shown_as_mine(
 # --- errors and reconnect ---------------------------------------------------
 
 
-async def test_error_mid_round_is_displayed(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_error_mid_round_is_displayed(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"]))
@@ -525,7 +605,9 @@ async def test_error_mid_round_is_displayed(bj_app: BlackjackApp, transport: Fak
         assert "Action not legal" in text_of(q(pilot, "#table-error"))
 
 
-async def test_socket_drop_mid_turn_is_reported(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_socket_drop_mid_turn_is_reported(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"]))
@@ -535,7 +617,9 @@ async def test_socket_drop_mid_turn_is_reported(bj_app: BlackjackApp, transport:
         assert screen(pilot).session.connected is False
 
 
-async def test_reconnect_resyncs_with_join_table(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_reconnect_resyncs_with_join_table(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(pilot, transport, player_turn(legal_actions=["hit", "stand"]))
@@ -565,7 +649,9 @@ async def test_reconnect_resyncs_with_join_table(bj_app: BlackjackApp, transport
         assert model.my_seat.hands == [["7C", "9S"]]
 
 
-async def test_bad_token_close_code_is_explained(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_bad_token_close_code_is_explained(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     transport.connect_error = TransportClosed(4401)
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
@@ -584,7 +670,9 @@ async def test_unknown_table_close_code_is_explained(
 # --- seats and navigation ---------------------------------------------------
 
 
-async def test_seats_render_for_every_player(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_seats_render_for_every_player(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(
@@ -606,7 +694,9 @@ async def test_seats_render_for_every_player(bj_app: BlackjackApp, transport: Fa
         assert "16" in text_of(panels[OTHER])
 
 
-async def test_action_applied_updates_my_hand(bj_app: BlackjackApp, transport: FakeTransport):
+async def test_action_applied_updates_my_hand(
+    bj_app: BlackjackApp, transport: FakeTransport
+):
     async with bj_app.run_test() as pilot:
         await open_table(pilot)
         await feed(
@@ -664,10 +754,24 @@ async def test_split_outcomes_are_shown_per_hand(
             {
                 "type": "round_result",
                 "results": [
-                    {"player_id": ME, "hand_index": 0, "outcome": "loss", "bet": 25,
-                     "payout": 0, "net": -25, "balance_after": 975},
-                    {"player_id": ME, "hand_index": 1, "outcome": "win", "bet": 25,
-                     "payout": 50, "net": 25, "balance_after": 1000},
+                    {
+                        "player_id": ME,
+                        "hand_index": 0,
+                        "outcome": "loss",
+                        "bet": 25,
+                        "payout": 0,
+                        "net": -25,
+                        "balance_after": 975,
+                    },
+                    {
+                        "player_id": ME,
+                        "hand_index": 1,
+                        "outcome": "win",
+                        "bet": 25,
+                        "payout": 50,
+                        "net": 25,
+                        "balance_after": 1000,
+                    },
                 ],
                 "dealer_hand": ["AC", "KC"],
                 "state_version": 9,

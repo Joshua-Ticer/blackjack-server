@@ -2,13 +2,9 @@
 
 Treat Redis as a cache/hot-path store, not a second source of truth -- PostgreSQL stays
 authoritative for anything durable. Session keys must carry a TTL.
-
-TODO:
-- get_redis() -> redis.asyncio.Redis, built from settings.redis_url
-- helpers for table-state snapshot get/set, pub/sub publish/subscribe, and a
-  distributed-lock helper (SET NX PX pattern) for the multi-instance case (Phase 5)
 """
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
@@ -19,7 +15,10 @@ from app.config import settings
 
 SNAPSHOT_KEY = "table:{table_id}:snapshot"
 EVENTS_CHANNEL = "table:{table_id}:events"
+COMMANDS_CHANNEL = "table:{table_id}:commands"
 LEASE_KEY = "table:{table_id}:lease"
+SESSION_KEY = "session:{session_id}"
+TABLE_LIST_KEY = "tables:list"
 
 NETWORK_ERRORS = (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError)
 
@@ -37,14 +36,27 @@ end
 return 0
 """
 
+
 async def get_redis() -> Redis:
     try:
-      client = Redis.from_url(settings.redis_url, decode_responses=True)
-      await client.ping()
-      return client
+        client = Redis.from_url(settings.redis_url, decode_responses=True)
+        await client.ping()
+        return client
     except ValueError:
-      print("Error: URL parsing failed")
-      raise
+        print("Error: URL parsing failed")
+        raise
+
+
+_shared_client: Redis | None = None
+
+
+def set_shared_client(client: Redis | None) -> None:
+    global _shared_client
+    _shared_client = client
+
+
+def get_shared_client() -> Redis | None:
+    return _shared_client
 
 
 async def set_snapshot(
@@ -72,13 +84,21 @@ async def publish(cache: Redis, channel: str, message: dict) -> bool:
         print(f"publish to {channel} failed: {e}")
         return False
 
-async def subscribe(cache: Redis, channel: str) -> AsyncIterator[dict]:
+
+async def subscribe(
+    cache: Redis, channel: str, ready: asyncio.Event | None = None
+) -> AsyncIterator[dict]:
     pubsub = cache.pubsub(ignore_subscribe_messages=True)
     try:
         await pubsub.subscribe(channel)
     except NETWORK_ERRORS as e:
         print(f"could not subscribe to {channel}: {e}")
+        if ready is not None:
+            ready.set()
         return
+
+    if ready is not None:
+        ready.set()
 
     try:
         async for message in pubsub.listen():
@@ -93,6 +113,7 @@ async def subscribe(cache: Redis, channel: str) -> AsyncIterator[dict]:
             await pubsub.aclose()
         except NETWORK_ERRORS:
             pass
+
 
 async def acquire_table_lease(
     cache: Redis, table_id: str, owner_id: str, ttl_ms: int = 10_000
@@ -118,5 +139,51 @@ async def release_lease(cache: Redis, table_id: str, owner_id: str) -> bool:
     key = LEASE_KEY.format(table_id=table_id)
     try:
         return bool(await cache.eval(_RELEASE_IF_OWNER, 1, key, owner_id))
+    except NETWORK_ERRORS:
+        return False
+
+
+async def create_session(cache: Redis, session_id: str, user_id: str, ttl: int) -> bool:
+    try:
+        key = SESSION_KEY.format(session_id=session_id)
+        await cache.set(key, user_id, ex=ttl)
+        return True
+    except NETWORK_ERRORS:
+        return False
+
+
+async def session_is_active(cache: Redis, session_id: str) -> bool:
+    try:
+        return await cache.exists(SESSION_KEY.format(session_id=session_id)) == 1
+    except NETWORK_ERRORS:
+        return True
+
+
+async def delete_session(cache: Redis, session_id: str) -> bool:
+    try:
+        return await cache.delete(SESSION_KEY.format(session_id=session_id)) == 1
+    except NETWORK_ERRORS:
+        return False
+
+
+async def cache_get(cache: Redis, key: str) -> str | None:
+    try:
+        value = await cache.get(key)
+        return value if value is None else str(value)
+    except NETWORK_ERRORS:
+        return None
+
+
+async def cache_set(cache: Redis, key: str, value: str, ttl: int) -> bool:
+    try:
+        await cache.set(key, value, ex=ttl)
+        return True
+    except NETWORK_ERRORS:
+        return False
+
+
+async def cache_delete(cache: Redis, key: str) -> bool:
+    try:
+        return await cache.delete(key) > 0
     except NETWORK_ERRORS:
         return False

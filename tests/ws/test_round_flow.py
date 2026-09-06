@@ -26,7 +26,9 @@ async def test_full_round_result_matches_users_me(
 ):
     table_id, token, player = table_and_token
     seed_table_manager(
-        TableRules(min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=5),
+        TableRules(
+            min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=5
+        ),
         seed=10,
     )
 
@@ -40,7 +42,9 @@ async def test_full_round_result_matches_users_me(
         betting_open = ws.receive_json()
         assert betting_open["type"] == "betting_open"
 
-        ws.send_json({"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())})
+        ws.send_json(
+            {"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())}
+        )
 
         bet_ack = ws.receive_json()
         assert bet_ack["type"] == "state_delta"
@@ -86,7 +90,12 @@ async def test_disconnect_mid_turn_auto_stands_via_timeout(
     auto-stand and carry the round through to settlement regardless."""
     table_id, token, player = table_and_token
     seed_table_manager(
-        TableRules(min_bet=5, max_bet=500, betting_window_seconds=0.05, turn_timeout_seconds=0.1),
+        TableRules(
+            min_bet=5,
+            max_bet=500,
+            betting_window_seconds=0.05,
+            turn_timeout_seconds=0.1,
+        ),
         seed=10,
     )
 
@@ -97,7 +106,9 @@ async def test_disconnect_mid_turn_auto_stands_via_timeout(
         ws.send_json({"type": "sit"})
         ws.receive_json()  # betting_open
 
-        ws.send_json({"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())})
+        ws.send_json(
+            {"type": "place_bet", "amount": BET_AMOUNT, "action_id": str(uuid4())}
+        )
 
         ws.receive_json()  # bet_placed delta
         ws.receive_json()  # post-deal table_state

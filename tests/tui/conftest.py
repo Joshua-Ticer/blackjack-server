@@ -26,7 +26,9 @@ def backend() -> FakeBackend:
 
 
 @pytest.fixture
-async def bj_app(backend: FakeBackend, transport: FakeTransport) -> AsyncIterator[BlackjackApp]:
+async def bj_app(
+    backend: FakeBackend, transport: FakeTransport
+) -> AsyncIterator[BlackjackApp]:
     rest, _ = fake_rest(backend)
     app = BlackjackApp(rest=rest, transport_factory=lambda: transport)
     yield app
@@ -47,7 +49,11 @@ def is_on_screen(pilot: Pilot[None], selector: str) -> bool:
     if not widget.display:
         return False
     region = widget.region
-    return region.height > 0 and region.y >= 0 and region.y + region.height <= pilot.app.size.height
+    return (
+        region.height > 0
+        and region.y >= 0
+        and region.y + region.height <= pilot.app.size.height
+    )
 
 
 def text_of(widget: object) -> str:
@@ -64,7 +70,9 @@ async def settle(pilot: Pilot[None], count: int = 3) -> None:
         await pilot.pause()
 
 
-async def do_login(pilot: Pilot[None], username: str = "player", password: str = "pw") -> None:
+async def do_login(
+    pilot: Pilot[None], username: str = "player", password: str = "pw"
+) -> None:
     q(pilot, "#username", Input).value = username
     q(pilot, "#password", Input).value = password
     await pilot.press("ctrl+n")

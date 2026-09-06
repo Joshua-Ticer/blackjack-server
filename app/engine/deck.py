@@ -6,7 +6,6 @@ TODO:
 - cut card / penetration handling (when to trigger a reshuffle)
 """
 
-
 import random
 
 from .card import Card, Rank, Suit
@@ -34,3 +33,18 @@ class Shoe:
 
     def needs_shuffle(self, penetration: float) -> bool:
         return self.cards_remaining() <= self._total * (1 - penetration)
+
+    def snapshot(self) -> dict:
+        return {
+            "num_decks": self._num_decks,
+            "remaining_cards": [str(c) for c in self._cards],
+        }
+
+    @classmethod
+    def restore(cls, num_decks: int, remaining_cards: list[str]) -> "Shoe":
+        shoe = cls.__new__(cls)
+        shoe._num_decks = num_decks
+        shoe._rng = random.Random()
+        shoe._cards = [Card.parse(c) for c in remaining_cards]
+        shoe._total = num_decks * 52
+        return shoe

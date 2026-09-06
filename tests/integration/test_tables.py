@@ -35,6 +35,36 @@ async def test_create_table_as_admin(client: AsyncClient, signup_and_login):
     assert [t["id"] for t in listed.json()] == [table["id"]]
 
 
+async def test_table_list_is_cached_until_a_create_invalidates_it(
+    client: AsyncClient, signup_and_login
+):
+    from app.db.session import SessionLocal
+    from app.models.table import Table
+
+    headers, _ = await signup_and_login(admin=True)
+
+    first = await client.post("/tables", json=TABLE_BODY, headers=headers)
+    assert first.status_code == 200
+    assert len((await client.get("/tables")).json()) == 1
+
+    async with SessionLocal() as session:
+        async with session.begin():
+            session.add(Table(name="Snuck In", min_bet=1, max_bet=10, max_seats=4))
+
+    still_cached = await client.get("/tables")
+    assert len(still_cached.json()) == 1
+
+    second = await client.post(
+        "/tables",
+        json={"name": "High Roller 2", "min_bet": 5, "max_bet": 500, "max_seats": 6},
+        headers=headers,
+    )
+    assert second.status_code == 200
+
+    refreshed = await client.get("/tables")
+    assert len(refreshed.json()) == 3
+
+
 async def test_get_table_by_id(client: AsyncClient, signup_and_login):
     headers, _ = await signup_and_login(admin=True)
     created = await client.post("/tables", json=TABLE_BODY, headers=headers)
@@ -55,7 +85,9 @@ async def test_history_rounds_requires_auth(client: AsyncClient):
     assert resp.status_code == 401
 
 
-async def test_history_rounds_paginated(client: AsyncClient, signup_and_login, seed_history):
+async def test_history_rounds_paginated(
+    client: AsyncClient, signup_and_login, seed_history
+):
     headers, user = await signup_and_login()
     seeded = await seed_history(user["id"])
 
@@ -83,7 +115,9 @@ async def test_history_ledger_requires_auth(client: AsyncClient):
     assert resp.status_code == 401
 
 
-async def test_history_ledger_paginated(client: AsyncClient, signup_and_login, seed_history):
+async def test_history_ledger_paginated(
+    client: AsyncClient, signup_and_login, seed_history
+):
     headers, user = await signup_and_login()
     await seed_history(user["id"])
 

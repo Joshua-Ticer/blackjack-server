@@ -4,11 +4,13 @@ TODO fields: id, username, hashed_password, email, chip_balance, created_at
 Note: chip_balance should be treated as a cached/reconciled column derived from
 LedgerEntry rows, never mutated directly by game logic -- see models/ledger.py.
 """
+
 from app.db.base import Base
 from uuid import UUID, uuid4
 from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
+
 
 class User(Base):
     __tablename__ = "users"

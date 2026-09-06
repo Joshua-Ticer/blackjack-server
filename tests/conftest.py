@@ -42,22 +42,25 @@ settings.database_url = TEST_DATABASE_URL
 settings.app_env = "test"  # -> NullPool + echo off, see app/db/session.py
 
 from httpx import ASGITransport, AsyncClient
+from redis.asyncio import Redis
 from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-
-from app.db.base import Base
-from app.main import app
 
 # ledger/round/table are imported for their side effect: registering every model on
 # Base.metadata, so create_all and _TABLES below see all six tables. app.main happens
 # to pull them in transitively today, but that's incidental -- a model no route
 # references would otherwise be silently missing from the test schema.
+from app.cache import redis_client as cache
+from app.db.base import Base
+from app.main import app
 from app.models import ledger  # noqa: F401
 from app.models import round as round_models  # noqa: F401
 from app.models import table as table_models  # noqa: F401
 from app.models.user import User
 from app.tables.table_manager import table_manager
+
+TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 
 
 def _sync_dsn(url: str) -> str:
@@ -85,7 +88,9 @@ async def _ensure_test_database() -> None:
 
     conn = await asyncpg.connect(admin_dsn)
     try:
-        exists = await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", dbname)
+        exists = await conn.fetchval(
+            "SELECT 1 FROM pg_database WHERE datname = $1", dbname
+        )
         if not exists:
             await conn.execute(f'CREATE DATABASE "{dbname}"')
     finally:
@@ -118,32 +123,32 @@ async def _truncate_all() -> None:
         await eng.dispose()
 
 
-def _clear_table_manager():
-    """Cancel every live TableActor task and drop it from the registry.
-
-    Actors created during a WS test may be running on a different event loop
-    (e.g. starlette's TestClient drives its own loop in a background thread),
-    so `task.cancel()` must be scheduled via that task's own loop rather than
-    called directly from whatever loop this fixture happens to run on.
-    """
-    for task in list(table_manager._tasks.values()):
-        try:
-            task.get_loop().call_soon_threadsafe(task.cancel)
-        except RuntimeError:
-            # loop already closed -- nothing left to schedule cancellation on
-            task.cancel()
-    table_manager._actors.clear()
-    table_manager._tasks.clear()
-
-
 @pytest.fixture(autouse=True)
 async def _isolate_database():
     """Every test starts against an empty database and no live actors."""
-    _clear_table_manager()
+    # Two client objects, not one: same "bound to whichever loop touches it
+    # first" issue as the Postgres NullPool note above, but for Redis --
+    # rest_redis runs on this fixture's loop, ws_redis on TestClient's thread.
+    rest_redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    ws_redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    await rest_redis.flushdb()
+    cache.set_shared_client(rest_redis)
+    table_manager.set_redis(ws_redis)
+
+    table_manager.shutdown_all()
     await _truncate_all()
     yield
-    _clear_table_manager()
+    table_manager.shutdown_all()
     await _truncate_all()
+
+    cache.set_shared_client(None)
+    table_manager.set_redis(None)
+    await rest_redis.flushdb()
+    await rest_redis.aclose()
+    try:
+        await ws_redis.aclose()
+    except RuntimeError:
+        pass
 
 
 @pytest.fixture
@@ -175,7 +180,9 @@ async def seed_history():
             sm = async_sessionmaker(bind=eng, expire_on_commit=False)
             async with sm() as s:
                 async with s.begin():
-                    tbl = Table(name="History Table", min_bet=5, max_bet=500, max_seats=6)
+                    tbl = Table(
+                        name="History Table", min_bet=5, max_bet=500, max_seats=6
+                    )
                     s.add(tbl)
                     await s.flush()
 
@@ -195,27 +202,34 @@ async def seed_history():
                         await s.flush()
                         round_ids.append(r.id)
 
-                        s.add(Participation(
-                            round_id=r.id,
-                            user_id=user_id,
-                            seat_number=0,
-                            bet_amount=25,
-                            outcome="win" if i == 0 else "loss",
-                            payout=50 if i == 0 else 0,
-                        ))
-                        s.add(LedgerEntry(
-                            user_id=user_id,
-                            round_id=r.id,
-                            amount=25 if i == 0 else -25,
-                            type="win" if i == 0 else "loss",
-                            balance_after=10025 if i == 0 else 10000,
-                            created_at=base + timedelta(minutes=i),
-                        ))
+                        s.add(
+                            Participation(
+                                round_id=r.id,
+                                user_id=user_id,
+                                seat_number=0,
+                                bet_amount=25,
+                                outcome="win" if i == 0 else "loss",
+                                payout=50 if i == 0 else 0,
+                            )
+                        )
+                        s.add(
+                            LedgerEntry(
+                                user_id=user_id,
+                                round_id=r.id,
+                                amount=25 if i == 0 else -25,
+                                type="win" if i == 0 else "loss",
+                                balance_after=10025 if i == 0 else 10000,
+                                created_at=base + timedelta(minutes=i),
+                            )
+                        )
         finally:
             await eng.dispose()
 
         # newest-first, matching the routes' ORDER BY ... DESC
-        return {"table_id": str(tbl.id), "round_ids": [str(r) for r in reversed(round_ids)]}
+        return {
+            "table_id": str(tbl.id),
+            "round_ids": [str(r) for r in reversed(round_ids)],
+        }
 
     return _seed
 
@@ -224,7 +238,9 @@ async def seed_history():
 async def signup_and_login(client: AsyncClient):
     """Create a user and return (headers, user_json) with a valid bearer token."""
 
-    async def _make(username: str = "josh", password: str = "hunter22", admin: bool = False):
+    async def _make(
+        username: str = "josh", password: str = "hunter22", admin: bool = False
+    ):
         signup = await client.post(
             "/auth/signup", json={"username": username, "password": password}
         )
@@ -240,7 +256,9 @@ async def signup_and_login(client: AsyncClient):
                 async with sm() as s:
                     async with s.begin():
                         await s.execute(
-                            update(User).where(User.id == user["id"]).values(is_admin=True)
+                            update(User)
+                            .where(User.id == user["id"])
+                            .values(is_admin=True)
                         )
             finally:
                 await eng.dispose()

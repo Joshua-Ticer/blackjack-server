@@ -30,6 +30,7 @@ ACTIONS: list[tuple[str, str, str]] = [
     ("surrender", "u", "Surrender"),
 ]
 
+
 def net_style(net: int) -> str:
     if net > 0:
         return "bold #2a9d8f"
@@ -96,7 +97,9 @@ class TableScreen(Screen[None]):
                 yield Static("", id="bet-hint")
             with Horizontal(id="action-bar"):
                 for action, key, label in ACTIONS:
-                    yield Button(f"{label} \\[{key}]", id=f"act-{action}", disabled=True)
+                    yield Button(
+                        f"{label} \\[{key}]", id=f"act-{action}", disabled=True
+                    )
             yield Static("", id="table-error")
         yield Footer()
 
@@ -209,7 +212,9 @@ class TableScreen(Screen[None]):
             return
         betting = self.model.betting
         if betting is not None and not (betting.min_bet <= amount <= betting.max_bet):
-            self._set_error(f"bet must be between {betting.min_bet} and {betting.max_bet}")
+            self._set_error(
+                f"bet must be between {betting.min_bet} and {betting.max_bet}"
+            )
             return
         self._set_error("")
         self._last_bet = amount
@@ -354,7 +359,10 @@ class TableScreen(Screen[None]):
 
         if self.model.my_bet:
             hint.update(
-                Text(f"bet {self.model.my_bet} placed - waiting for the deal", style="bold #2a9d8f")
+                Text(
+                    f"bet {self.model.my_bet} placed - waiting for the deal",
+                    style="bold #2a9d8f",
+                )
             )
         elif betting is not None:
             hint.update(
@@ -374,7 +382,9 @@ class TableScreen(Screen[None]):
 
     def _render_actions(self) -> None:
         for action, _, _ in ACTIONS:
-            self.query_one(f"#act-{action}", Button).disabled = not self.model.can(action)
+            self.query_one(f"#act-{action}", Button).disabled = not self.model.can(
+                action
+            )
 
     def _render_result(self) -> None:
         panel = self.query_one("#result-panel")

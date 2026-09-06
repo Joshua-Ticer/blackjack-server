@@ -68,12 +68,14 @@ def test_soft_and_blackjack_labels():
 
 
 def test_table_state_populates_seats_and_version(model: TableModel):
-    model.apply(table_state(
-        lobby_state="player_turns",
-        seats=[seat(ME, hands=[["7C", "9S"]], bets=[25])],
-        dealer_hand=["AC"],
-        state_version=4,
-    ))
+    model.apply(
+        table_state(
+            lobby_state="player_turns",
+            seats=[seat(ME, hands=[["7C", "9S"]], bets=[25])],
+            dealer_hand=["AC"],
+            state_version=4,
+        )
+    )
     assert model.lobby_state == "player_turns"
     assert model.state_version == 4
     assert model.my_seat is not None
@@ -88,7 +90,9 @@ def test_state_version_never_moves_backwards(model: TableModel):
 
 
 def test_dealer_upcard_stays_hidden_until_round_result(model: TableModel):
-    model.apply(table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4))
+    model.apply(
+        table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4)
+    )
     assert model.visible_dealer_cards() == ["AC"]
     assert model.dealer_face_down() == 1
     assert model.dealer_revealed is False
@@ -101,7 +105,9 @@ def test_dealer_upcard_stays_hidden_until_round_result(model: TableModel):
 
 
 def test_dealer_reveals_one_card_at_a_time(model: TableModel):
-    model.apply(table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4))
+    model.apply(
+        table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4)
+    )
     model.apply(round_result(dealer_hand=["AC", "KC", "5D"]))
 
     assert model.visible_dealer_cards() == ["AC"]
@@ -112,7 +118,9 @@ def test_dealer_reveals_one_card_at_a_time(model: TableModel):
 
 
 def test_outcome_is_withheld_until_the_reveal_finishes(model: TableModel):
-    model.apply(table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4))
+    model.apply(
+        table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4)
+    )
     model.apply(round_result(dealer_hand=["AC", "KC", "5D"], outcome="win"))
 
     assert model.results is not None
@@ -128,7 +136,9 @@ def test_outcome_is_withheld_until_the_reveal_finishes(model: TableModel):
 
 
 def test_reveal_is_idempotent_once_complete(model: TableModel):
-    model.apply(table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4))
+    model.apply(
+        table_state(lobby_state="player_turns", dealer_hand=["AC"], state_version=4)
+    )
     model.apply(round_result(dealer_hand=["AC", "KC"]))
     model.advance_dealer_reveal()
     assert model.advance_dealer_reveal() is True
@@ -197,7 +207,9 @@ def test_result_survives_the_betting_open_that_follows_it(model: TableModel):
 def test_result_is_cleared_when_the_next_round_deals(model: TableModel):
     model.apply(round_result(dealer_hand=["AC", "KC"]))
     model.apply(betting_open())
-    model.apply(table_state(lobby_state="player_turns", dealer_hand=["7D"], state_version=30))
+    model.apply(
+        table_state(lobby_state="player_turns", dealer_hand=["7D"], state_version=30)
+    )
     assert model.results is None
     assert model.dealer_revealed is False
     assert model.dealer_hand == ["7D"]
@@ -205,7 +217,9 @@ def test_result_is_cleared_when_the_next_round_deals(model: TableModel):
 
 def test_empty_round_result_does_not_wipe_my_last_outcome(model: TableModel):
     model.apply(round_result(outcome="win", dealer_hand=["AC", "KC"]))
-    model.apply({"type": "round_result", "results": [], "dealer_hand": [], "state_version": 40})
+    model.apply(
+        {"type": "round_result", "results": [], "dealer_hand": [], "state_version": 40}
+    )
     assert model.my_results()[0].outcome == "win"
 
 

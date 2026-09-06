@@ -19,7 +19,9 @@ class Countdown(Static):
     }
     """
 
-    def __init__(self, now: Callable[[], datetime] | None = None, **kwargs: object) -> None:
+    def __init__(
+        self, now: Callable[[], datetime] | None = None, **kwargs: object
+    ) -> None:
         super().__init__("", **kwargs)  # type: ignore[arg-type]
         self._now = now or datetime.now
         self._deadline: datetime | None = None

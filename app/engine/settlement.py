@@ -15,14 +15,15 @@ class Outcome(Enum):
     BUST = "bust"
     SURRENDER = "surrender"
 
+
 @dataclass(frozen=True)
 class SettlementResult:
     player_id: str
-    hand_index: int          # which hand, in case of splits
+    hand_index: int  # which hand, in case of splits
     bet: int
     outcome: Outcome
-    payout: int               # total chips returned to player, 0 if loss
-    net: int                  # payout - bet; negative on loss, 0 on push
+    payout: int  # total chips returned to player, 0 if loss
+    net: int  # payout - bet; negative on loss, 0 on push
 
 
 def settle_hand(
@@ -39,8 +40,12 @@ def settle_hand(
     if surrendered:
         payout = bet // 2
         return SettlementResult(
-            player_id, hand_index, bet, Outcome.SURRENDER,
-            payout=payout, net=-(bet - payout),
+            player_id,
+            hand_index,
+            bet,
+            Outcome.SURRENDER,
+            payout=payout,
+            net=-(bet - payout),
         )
 
     if hand.is_bust:
@@ -52,8 +57,12 @@ def settle_hand(
         num, den = rules.blackjack_payout
         payout = bet + (bet * num) // den
         return SettlementResult(
-            player_id, hand_index, bet, Outcome.BLACKJACK,
-            payout=payout, net=payout - bet,
+            player_id,
+            hand_index,
+            bet,
+            Outcome.BLACKJACK,
+            payout=payout,
+            net=payout - bet,
         )
 
     if hand.is_blackjack and dealer_blackjack:

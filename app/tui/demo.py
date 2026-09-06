@@ -7,6 +7,7 @@ settlement all come from app/engine, so outcomes are genuine.
 
 Log in with any username/password, press enter on a table, then play.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,9 +29,20 @@ BOT = "22222222-2222-2222-2222-222222222222"
 TABLE_ID = "33333333-3333-3333-3333-333333333333"
 
 TABLES: list[dict[str, Any]] = [
-    {"id": TABLE_ID, "name": "High Roller", "min_bet": 25, "max_bet": 500, "status": "open"},
-    {"id": "44444444-4444-4444-4444-444444444444", "name": "Low Stakes",
-     "min_bet": 1, "max_bet": 50, "status": "open"},
+    {
+        "id": TABLE_ID,
+        "name": "High Roller",
+        "min_bet": 25,
+        "max_bet": 500,
+        "status": "open",
+    },
+    {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Low Stakes",
+        "min_bet": 1,
+        "max_bet": 50,
+        "status": "open",
+    },
 ]
 
 BETTING_WINDOW = 30
@@ -138,7 +150,12 @@ class EngineTransport:
         if self.round is None:
             seats = [
                 {"player_id": ME, "hands": [], "bets": [self.bet], "outcomes": []},
-                {"player_id": BOT, "hands": [], "bets": [bot_bet_for(self.rules)], "outcomes": []},
+                {
+                    "player_id": BOT,
+                    "hands": [],
+                    "bets": [bot_bet_for(self.rules)],
+                    "outcomes": [],
+                },
             ]
             dealer: list[str] = []
         else:
@@ -157,24 +174,28 @@ class EngineTransport:
     def open_betting(self) -> None:
         self.bet = 0
         self.round = None
-        self.push({
-            "type": "betting_open",
-            "deadline": deadline(self.rules.betting_window_seconds),
-            "min_bet": self.rules.min_bet,
-            "max_bet": self.rules.max_bet,
-            "state_version": self.next_version(),
-        })
+        self.push(
+            {
+                "type": "betting_open",
+                "deadline": deadline(self.rules.betting_window_seconds),
+                "min_bet": self.rules.min_bet,
+                "max_bet": self.rules.max_bet,
+                "state_version": self.next_version(),
+            }
+        )
 
     def on_bet(self, amount: int) -> None:
         self.bet = amount
-        self.push({
-            "type": "state_delta",
-            "change": "bet_placed",
-            "player_id": ME,
-            "hand_index": None,
-            "detail": {"amount": amount},
-            "state_version": self.next_version(),
-        })
+        self.push(
+            {
+                "type": "state_delta",
+                "change": "bet_placed",
+                "player_id": ME,
+                "hand_index": None,
+                "detail": {"amount": amount},
+                "state_version": self.next_version(),
+            }
+        )
         self.later(1.2, *self.deal())
 
     def deal(self) -> list[dict[str, Any]]:
@@ -216,14 +237,16 @@ class EngineTransport:
             actions = self.round.legal_actions_for(ME)
             if not actions:
                 continue
-            return [{
-                "type": "player_turn",
-                "player_id": ME,
-                "hand_index": index,
-                "legal_actions": [a.value for a in actions],
-                "deadline": deadline(self.rules.turn_timeout_seconds),
-                "state_version": self.next_version(),
-            }]
+            return [
+                {
+                    "type": "player_turn",
+                    "player_id": ME,
+                    "hand_index": index,
+                    "legal_actions": [a.value for a in actions],
+                    "deadline": deadline(self.rules.turn_timeout_seconds),
+                    "state_version": self.next_version(),
+                }
+            ]
         return self.finish()
 
     def play_bot(self) -> list[dict[str, Any]]:
@@ -235,14 +258,19 @@ class EngineTransport:
             hand = seat.hands[index]
             action = Action.HIT if hand.total < 17 else Action.STAND
             self.round.player_action(BOT, action)
-            messages.append({
-                "type": "state_delta",
-                "change": "action_applied",
-                "player_id": BOT,
-                "hand_index": index,
-                "detail": {"action": action.value, "hand": cards_of(seat.hands[index])},
-                "state_version": self.next_version(),
-            })
+            messages.append(
+                {
+                    "type": "state_delta",
+                    "change": "action_applied",
+                    "player_id": BOT,
+                    "hand_index": index,
+                    "detail": {
+                        "action": action.value,
+                        "hand": cards_of(seat.hands[index]),
+                    },
+                    "state_version": self.next_version(),
+                }
+            )
         messages.extend(self.advance())
         return messages
 
@@ -251,14 +279,16 @@ class EngineTransport:
         seat = self.round._get_seat(ME)
         index = seat.active_hand_index
         self.round.player_action(ME, Action(action))
-        self.push({
-            "type": "state_delta",
-            "change": "action_applied",
-            "player_id": ME,
-            "hand_index": index,
-            "detail": {"action": action, "hand": cards_of(seat.hands[index])},
-            "state_version": self.next_version(),
-        })
+        self.push(
+            {
+                "type": "state_delta",
+                "change": "action_applied",
+                "player_id": ME,
+                "hand_index": index,
+                "detail": {"action": action, "hand": cards_of(seat.hands[index])},
+                "state_version": self.next_version(),
+            }
+        )
         # an action_applied delta only carries one hand, so a split's second hand
         # is invisible until a full snapshot lands
         if len(seat.hands) > 1:
@@ -311,13 +341,20 @@ class EngineTransport:
 def fake_backend(request: httpx.Request) -> httpx.Response:
     path = request.url.path
     if path == "/auth/login":
-        return httpx.Response(200, json={"access_token": "demo", "token_type": "bearer"})
+        return httpx.Response(
+            200, json={"access_token": "demo", "token_type": "bearer"}
+        )
     if path == "/auth/signup":
         return httpx.Response(400, json={"detail": "Username already taken"})
     if path == "/users/me":
         return httpx.Response(
             200,
-            json={"id": ME, "username": "demo", "chip_balance": 1000, "is_admin": False},
+            json={
+                "id": ME,
+                "username": "demo",
+                "chip_balance": 1000,
+                "is_admin": False,
+            },
         )
     if path == "/tables":
         return httpx.Response(200, json=TABLES)
@@ -331,4 +368,3 @@ def build(force_pairs: bool = False) -> tuple[BlackjackApp, EngineTransport]:
     rest = RestClient("http://demo", client=client)
     transport = EngineTransport(force_pairs=force_pairs)
     return BlackjackApp(rest=rest, transport_factory=lambda: transport), transport
-

@@ -116,13 +116,17 @@ def player_turn(
         "type": "player_turn",
         "player_id": player_id,
         "hand_index": hand_index,
-        "legal_actions": legal_actions if legal_actions is not None else ["hit", "stand"],
+        "legal_actions": (
+            legal_actions if legal_actions is not None else ["hit", "stand"]
+        ),
         "deadline": deadline_in(seconds),
         "state_version": state_version,
     }
 
 
-def bet_placed(player_id: str = ME, amount: int = 25, state_version: int = 3) -> dict[str, Any]:
+def bet_placed(
+    player_id: str = ME, amount: int = 25, state_version: int = 3
+) -> dict[str, Any]:
     return {
         "type": "state_delta",
         "change": "bet_placed",
@@ -216,9 +220,13 @@ class FakeBackend:
             form = dict(httpx.QueryParams(request.content.decode()))
             username = form.get("username", "")
             if self.users and self.users.get(username) != form.get("password"):
-                return httpx.Response(401, json={"detail": "Incorrect username or password"})
+                return httpx.Response(
+                    401, json={"detail": "Incorrect username or password"}
+                )
             self.username = username
-            return httpx.Response(200, json={"access_token": "test-token", "token_type": "bearer"})
+            return httpx.Response(
+                200, json={"access_token": "test-token", "token_type": "bearer"}
+            )
 
         if path == "/users/me":
             if request.headers.get("Authorization") != "Bearer test-token":
