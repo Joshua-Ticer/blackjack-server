@@ -27,8 +27,27 @@ async def settle_round(
 
     async with SessionLocal() as session:
         async with session.begin():
+            player_ids = list(results_by_player.keys())
+
+            users = (
+                await session.execute(
+                    select(User).where(User.id.in_(player_ids)).with_for_update()
+                )
+            ).scalars().all()
+            users_by_id = {str(u.id): u for u in users}
+
+            participations = (
+                await session.execute(
+                    select(Participation).where(
+                        Participation.round_id == round_id,
+                        Participation.user_id.in_(player_ids),
+                    )
+                )
+            ).scalars().all()
+            participations_by_player = {str(p.user_id): p for p in participations}
+
             for player_id, player_results in results_by_player.items():
-                user = await session.get(User, player_id, with_for_update=True)
+                user = users_by_id[player_id]
 
                 for r in player_results:
                     user.chip_balance += r.net
@@ -44,14 +63,7 @@ async def settle_round(
                 balances[player_id] = user.chip_balance
 
                 seat = seats_by_player[player_id]
-                participation = (
-                    await session.execute(
-                        select(Participation).where(
-                            Participation.round_id == round_id,
-                            Participation.user_id == player_id,
-                        )
-                    )
-                ).scalar_one_or_none()
+                participation = participations_by_player.get(player_id)
                 if participation is not None:
                     participation.hands = [
                         [str(c) for c in hand.cards] for hand in seat.hands

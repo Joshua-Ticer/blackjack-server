@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from fastapi import WebSocket
 from pydantic import TypeAdapter
 from redis.asyncio import Redis
+from sqlalchemy import select
 
 from app.api import deps
 from app.api.ws.schemas import (
@@ -37,6 +38,7 @@ from app.engine.rules import Action, TableRules
 from app.engine.state_machine import StateMachine, TableEvent, TableState
 from app.models.round import GameSession, Participation
 from app.models.round import Round as RoundModel
+from app.models.user import User
 from app.services import settlement_service
 
 _client_event_adapter = TypeAdapter(ClientEvent)
@@ -398,9 +400,13 @@ class TableActor:
         self.round.deal_initial()
 
         async with SessionLocal() as session:
+            pids = [pid for pid, _ in seated]
+            users = (
+                await session.execute(select(User).where(User.id.in_(pids)))
+            ).scalars().all()
+            balances_by_id = {str(u.id): u.chip_balance for u in users}
             for pid, _ in seated:
-                user = await deps.get_user_by_id(session, pid)
-                self._balances[pid] = user.chip_balance if user is not None else 0
+                self._balances[pid] = balances_by_id.get(pid, 0)
 
         async with SessionLocal() as session:
             async with session.begin():

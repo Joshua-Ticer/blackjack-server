@@ -24,7 +24,7 @@ primary_region = 'iad'
     path = '/docs'
 
 [[vm]]
-  memory = '4gb'
-  cpus = 2
+  memory = '16gb'
+  cpus = 8
   cpu_kind = 'performance'
-  memory_mb = 4096
+  memory_mb = 16384

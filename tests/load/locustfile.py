@@ -53,10 +53,10 @@ from locust import HttpUser, between, events, task
 from locust.exception import StopUser
 
 BET_AMOUNT = 5
-JOIN_TIMEOUT = 30
-BETTING_TIMEOUT = 40
-ACTION_TIMEOUT = 40
-ROUND_TIMEOUT = 90
+JOIN_TIMEOUT = 60
+BETTING_TIMEOUT = 60
+ACTION_TIMEOUT = 60
+ROUND_TIMEOUT = 200
 
 PLAYER_USERNAME_PREFIX = "loadtest_player_"
 PLAYER_PASSWORD = "loadtest-player-pw"
@@ -77,7 +77,7 @@ class TableFullError(Exception):
 
 
 class BlackjackPlayer(HttpUser):
-    wait_time = between(1, 3)
+    wait_time = between(0.5, 1)
 
     def on_start(self):
         index = next(_player_index)

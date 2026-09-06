@@ -19,8 +19,8 @@ if settings.app_env == "test":
     # closed loop to the next test ("attached to a different loop"), so don't pool.
     _engine_kwargs["poolclass"] = NullPool
 else:
-    _engine_kwargs["pool_size"] = 5
-    _engine_kwargs["max_overflow"] = 5
+    _engine_kwargs["pool_size"] = 3
+    _engine_kwargs["max_overflow"] = 3
 
 engine = create_async_engine(settings.database_url, **_engine_kwargs)
 
