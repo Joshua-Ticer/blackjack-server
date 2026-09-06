@@ -22,6 +22,8 @@ TABLE_LIST_KEY = "tables:list"
 
 NETWORK_ERRORS = (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError)
 
+MAX_CONNECTIONS = 10_000
+
 _RELEASE_IF_OWNER = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
     return redis.call('del', KEYS[1])
@@ -39,7 +41,9 @@ return 0
 
 async def get_redis() -> Redis:
     try:
-        client = Redis.from_url(settings.redis_url, decode_responses=True)
+        client = Redis.from_url(
+            settings.redis_url, decode_responses=True, max_connections=MAX_CONNECTIONS
+        )
         await client.ping()
         return client
     except ValueError:

@@ -8,3 +8,8 @@ venv/
 .mypy_cache/
 .ruff_cache/
 snapshot_report.html
+tests/load/tables.json
+tests/load/players.json
+tests/load/loadtest_*.csv
+uvicorn_*.log
+worker_*.log

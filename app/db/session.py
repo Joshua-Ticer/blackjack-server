@@ -18,6 +18,9 @@ if settings.app_env == "test":
     # bound to the loop that opened them. Pooling would hand a connection from a
     # closed loop to the next test ("attached to a different loop"), so don't pool.
     _engine_kwargs["poolclass"] = NullPool
+else:
+    _engine_kwargs["pool_size"] = 5
+    _engine_kwargs["max_overflow"] = 5
 
 engine = create_async_engine(settings.database_url, **_engine_kwargs)
 

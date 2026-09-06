@@ -96,6 +96,7 @@ class TableManager:
         self._relays: dict[str, TableRelay] = {}
         self._tasks: dict[str, asyncio.Task] = {}
         self._lease_tasks: dict[str, asyncio.Task] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         self.instance_id = uuid.uuid4().hex
         self.redis: Redis | None = None
 
@@ -109,33 +110,39 @@ class TableManager:
         if existing is not None:
             return existing
 
-        if self.redis is None:
-            return self._start_local_actor(table_id, rules, seed)
+        lock = self._locks.setdefault(table_id, asyncio.Lock())
+        async with lock:
+            existing = self._actors.get(table_id) or self._relays.get(table_id)
+            if existing is not None:
+                return existing
 
-        owns_lease = await cache.renew_lease(
-            self.redis, table_id, self.instance_id, LEASE_TTL_MS
-        )
-        if not owns_lease:
-            owns_lease = await cache.acquire_table_lease(
+            if self.redis is None:
+                return self._start_local_actor(table_id, rules, seed)
+
+            owns_lease = await cache.renew_lease(
                 self.redis, table_id, self.instance_id, LEASE_TTL_MS
             )
-        if not owns_lease:
-            relay = TableRelay(table_id, self.redis)
-            self._relays[table_id] = relay
-            await relay.start()
-            return relay
+            if not owns_lease:
+                owns_lease = await cache.acquire_table_lease(
+                    self.redis, table_id, self.instance_id, LEASE_TTL_MS
+                )
+            if not owns_lease:
+                relay = TableRelay(table_id, self.redis)
+                self._relays[table_id] = relay
+                await relay.start()
+                return relay
 
-        actor = self._start_local_actor(table_id, rules, seed, redis=self.redis)
-        self._lease_tasks[table_id] = asyncio.create_task(
-            self._renew_lease_loop(table_id)
-        )
+            actor = self._start_local_actor(table_id, rules, seed, redis=self.redis)
+            self._lease_tasks[table_id] = asyncio.create_task(
+                self._renew_lease_loop(table_id)
+            )
 
-        snapshot = await cache.get_snapshot(self.redis, table_id)
-        if snapshot is not None:
-            actor.restore(snapshot)
+            snapshot = await cache.get_snapshot(self.redis, table_id)
+            if snapshot is not None:
+                actor.restore(snapshot)
 
-        await actor.start_command_listener()
-        return actor
+            await actor.start_command_listener()
+            return actor
 
     def _start_local_actor(
         self, table_id, rules, seed=None, redis: Redis | None = None

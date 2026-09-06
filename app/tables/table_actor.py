@@ -376,9 +376,23 @@ class TableActor:
         if self.sm.state != TableState.BETTING_OPEN:
             return  # already closed by the other trigger (timer vs. all-bets-in race)
 
+        seated = [(pid, bet) for pid, bet in self._seats.items() if bet > 0]
+        if not seated:
+            self._schedule_betting_timeout(self.rules.betting_window_seconds)
+            self._version += 1
+            await self._broadcast(
+                BettingOpen(
+                    deadline=datetime.now()
+                    + timedelta(seconds=self.rules.betting_window_seconds),
+                    min_bet=self.rules.min_bet,
+                    max_bet=self.rules.max_bet,
+                    state_version=self._version,
+                )
+            )
+            return
+
         self.sm.fire(TableEvent.BETS_LOCKED)
         shoe = await self._ensure_shoe()
-        seated = [(pid, bet) for pid, bet in self._seats.items() if bet > 0]
         seats = [Seat(player_id=pid, bets=[bet]) for pid, bet in seated]
         self.round = Round(shoe, self.rules, seats)
         self.round.deal_initial()
