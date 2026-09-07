@@ -1,11 +1,4 @@
-"""Card representation. Pure data, no I/O.
-
-TODO:
-- Suit enum (clubs, diamonds, hearts, spades)
-- Rank enum (two..ten, jack, queen, king, ace)
-- Card (frozen dataclass or NamedTuple) combining Suit + Rank
-- A `blackjack_value` or similar helper the Hand module can use for soft/hard totals
-"""
+"""Card representation. Pure data, no I/O."""
 
 from enum import Enum
 from dataclasses import dataclass

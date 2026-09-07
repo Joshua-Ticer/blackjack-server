@@ -1,10 +1,4 @@
-"""Shoe/deck construction and seeded shuffling.
-
-TODO:
-- build_shoe(num_decks: int) -> list[Card]
-- shuffle(shoe: list[Card], seed: int | None) -> list[Card]  (seeded for reproducible tests)
-- cut card / penetration handling (when to trigger a reshuffle)
-"""
+"""Shoe/deck construction and seeded shuffling."""
 
 import random
 

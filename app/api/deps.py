@@ -1,8 +1,4 @@
-"""Shared FastAPI dependencies: DB session, current-user auth, etc.
-
-TODO:
-- get_current_user(token: str = Depends(...)) -> User   (verifies JWT, loads user)
-"""
+"""Shared FastAPI dependencies: DB session, current-user auth, etc."""
 
 from typing import Annotated
 

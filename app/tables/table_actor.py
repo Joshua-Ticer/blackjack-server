@@ -206,9 +206,9 @@ class TableActor:
             "total_splits": seat.total_splits,
         }
 
-    def _dealer_view(self, dealer_hand: Hand, lobby_state) -> list[str]:
+    def _dealer_view(self, dealer_hand: Hand, round_state: TableState) -> list[str]:
         cards = [f"{c.rank.value}{c.suit.value}" for c in dealer_hand.cards]
-        if lobby_state in (TableState.DEALER_TURN, TableState.SETTLEMENT):
+        if round_state in (TableState.DEALER_TURN, TableState.SETTLEMENT):
             return cards
         return cards[:1]
 
@@ -246,17 +246,7 @@ class TableActor:
         self._seats[player_id] = 0
         if len(self._seats) == 1 and self.sm.state == TableState.IDLE:
             self.sm.fire(TableEvent.PLAYERS_SEATED)
-            self._schedule_betting_timeout(self.rules.betting_window_seconds)
-            self._version += 1
-            await self._broadcast(
-                BettingOpen(
-                    deadline=datetime.now()
-                    + timedelta(seconds=self.rules.betting_window_seconds),
-                    min_bet=self.rules.min_bet,
-                    max_bet=self.rules.max_bet,
-                    state_version=self._version,
-                )
-            )
+            await self._broadcast_betting_open()
 
     async def _handle_place_bet(self, player_id: str, event: PlaceBet):
         if event.action_id in self._seen_actions:
@@ -380,17 +370,7 @@ class TableActor:
 
         seated = [(pid, bet) for pid, bet in self._seats.items() if bet > 0]
         if not seated:
-            self._schedule_betting_timeout(self.rules.betting_window_seconds)
-            self._version += 1
-            await self._broadcast(
-                BettingOpen(
-                    deadline=datetime.now()
-                    + timedelta(seconds=self.rules.betting_window_seconds),
-                    min_bet=self.rules.min_bet,
-                    max_bet=self.rules.max_bet,
-                    state_version=self._version,
-                )
-            )
+            await self._broadcast_betting_open()
             return
 
         self.sm.fire(TableEvent.BETS_LOCKED)
@@ -515,18 +495,22 @@ class TableActor:
 
         if self._seats:
             self.sm.fire(TableEvent.PLAYERS_SEATED)  # -> BETTING_OPEN again
-            self._schedule_betting_timeout(self.rules.betting_window_seconds)
-            await self._broadcast(
-                BettingOpen(
-                    deadline=datetime.now()
-                    + timedelta(seconds=self.rules.betting_window_seconds),
-                    min_bet=self.rules.min_bet,
-                    max_bet=self.rules.max_bet,
-                    state_version=self._version,
-                )
-            )
+            await self._broadcast_betting_open()
         else:
             await self._broadcast(self._build_snapshot())
+
+    async def _broadcast_betting_open(self) -> None:
+        self._schedule_betting_timeout(self.rules.betting_window_seconds)
+        self._version += 1
+        await self._broadcast(
+            BettingOpen(
+                deadline=datetime.now()
+                + timedelta(seconds=self.rules.betting_window_seconds),
+                min_bet=self.rules.min_bet,
+                max_bet=self.rules.max_bet,
+                state_version=self._version,
+            )
+        )
 
     def _schedule_betting_timeout(self, deadline_seconds):
         loop = asyncio.get_running_loop()

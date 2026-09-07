@@ -6,12 +6,15 @@ authoritative for anything durable. Session keys must carry a TTL.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 
 import redis.exceptions
 from redis.asyncio import Redis
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 SNAPSHOT_KEY = "table:{table_id}:snapshot"
 EVENTS_CHANNEL = "table:{table_id}:events"
@@ -47,7 +50,7 @@ async def get_redis() -> Redis:
         await client.ping()
         return client
     except ValueError:
-        print("Error: URL parsing failed")
+        logger.error("Redis URL parsing failed")
         raise
 
 
@@ -71,7 +74,7 @@ async def set_snapshot(
         await cache.set(key, json.dumps(payload), ex=ttl)
         return True
     except NETWORK_ERRORS as e:
-        print(f"snapshot write for {table_id} failed: {e}")
+        logger.warning("snapshot write for %s failed: %s", table_id, e)
         return False
 
 
@@ -85,7 +88,7 @@ async def publish(cache: Redis, channel: str, message: dict) -> bool:
         await cache.publish(channel, json.dumps(message))
         return True
     except NETWORK_ERRORS as e:
-        print(f"publish to {channel} failed: {e}")
+        logger.warning("publish to %s failed: %s", channel, e)
         return False
 
 
@@ -96,7 +99,7 @@ async def subscribe(
     try:
         await pubsub.subscribe(channel)
     except NETWORK_ERRORS as e:
-        print(f"could not subscribe to {channel}: {e}")
+        logger.warning("could not subscribe to %s: %s", channel, e)
         if ready is not None:
             ready.set()
         return
@@ -110,7 +113,7 @@ async def subscribe(
                 continue
             yield json.loads(message["data"])
     except NETWORK_ERRORS as e:
-        print(f"subscription to {channel} dropped: {e}")
+        logger.warning("subscription to %s dropped: %s", channel, e)
     finally:
         try:
             await pubsub.unsubscribe(channel)
